@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quản lý — Billiard Coffee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#11161d; --panel:#1a212b; --panel2:#212a36; --line:#2b3542;
+    --copper:#cf7a3a; --copper2:#e69a5c; --text:#eef1f5; --muted:#8d97a6;
+    --good:#3fbf74; --warn:#e0a53e; --bad:#e0523e;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+    box-sizing:border-box;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:'Be Vietnam Pro',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
+  header{display:flex; align-items:center; gap:24px; padding:14px 22px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#141b23,#11161d); position:sticky; top:env(safe-area-inset-top,0px); z-index:10; flex-wrap:wrap;}
+  .logo{display:flex; align-items:center; gap:10px; font-weight:800; font-size:19px;}
+  .logo-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--copper),var(--copper2));display:flex;align-items:center;justify-content:center;font-size:15px;}
+  nav{display:flex; gap:4px; flex:1; flex-wrap:wrap;}
+  nav a{color:var(--muted); font-family:inherit; font-size:14.5px; font-weight:600; padding:9px 14px; border-radius:8px; cursor:pointer; text-decoration:none;}
+  nav a.active{color:var(--text); background:var(--panel2);}
+  .clock{text-align:right; color:var(--muted); font-size:12.5px; line-height:1.4;}
+  .userbox{display:flex; align-items:center; gap:10px; color:var(--muted); font-size:13px;}
+  .userbox b{color:var(--text);}
+  .userbox button{background:var(--panel2); border:1px solid var(--line); color:var(--text); font-family:inherit; font-size:12.5px; font-weight:600; padding:7px 11px; border-radius:8px; cursor:pointer;}
+  main{padding:20px; max-width:1200px; margin:0 auto;}
+  .btn{background:var(--copper); color:#1a1208; border:none; border-radius:9px; padding:10px 16px; font-family:inherit; font-weight:700; font-size:14px; cursor:pointer;}
+  .btn.ghost{background:var(--panel2); color:var(--text); border:1px solid var(--line);}
+  .btn.small{padding:6px 10px; font-size:12.5px; border-radius:7px;}
+  .btn.danger{background:var(--bad); color:#fff;}
+  input,select{background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:9px 11px; font-family:inherit; font-size:13.5px;}
+  label{font-size:12.5px; color:var(--muted); font-weight:600; display:block; margin-bottom:5px;}
+  .field{margin-bottom:12px;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px;}
+  .empty-state{display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; color:var(--muted); gap:10px; text-align:center;}
+  .empty-state .ic{font-size:36px;}
+  .subnav{display:flex; gap:8px; margin-bottom:18px;}
+  .subnav button{background:var(--panel2); border:1px solid var(--line); color:var(--muted); font-family:inherit; font-weight:700; font-size:13px; padding:8px 14px; border-radius:999px; cursor:pointer;}
+  .subnav button.active{background:var(--copper); color:#1a1208; border-color:var(--copper);}
+  .subview{display:none;}
+  .subview.active{display:block;}
+  table.data{width:100%; border-collapse:collapse; font-size:13.5px;}
+  table.data th{text-align:left; color:var(--muted); font-weight:600; font-size:12px; padding:8px 10px; border-bottom:1px solid var(--line);}
+  table.data td{padding:10px; border-bottom:1px solid var(--line);}
+  .emp-row{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border:1px solid var(--line); border-radius:10px; margin-bottom:8px; background:var(--panel);}
+  .rate-row{display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--line); border-radius:10px; margin-bottom:8px; background:var(--panel);}
+  .rate-row input{width:110px;}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--bad); color:#fff; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:600; z-index:100; display:none;}
+  .chips{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+  .chips button{background:var(--panel2); border:1px solid var(--line); color:var(--muted); font-family:inherit; font-weight:600; font-size:12.5px; padding:7px 12px; border-radius:8px; cursor:pointer;}
+  .chips button.active{background:var(--panel); color:var(--text); border-color:var(--copper);}
+  .badge{display:inline-block; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:700; white-space:nowrap;}
+  .b-table{background:#2a3a55; color:#8fb8f5;} .b-transaction{background:#1f3d2c; color:#6fdc9b;}
+  .b-employee{background:#3f3320; color:#e6c06a;} .b-menu{background:#3d2a3f; color:#dba3e0;}
+  .b-rate{background:#3a2c20; color:#e69a5c;} .b-reservation{background:#20373d; color:#7fd3e0;}
+  .b-auth{background:#2b3542; color:#b5bfcc;}
+  .act-danger{color:var(--bad); font-weight:700;}
+  tr.log-row{cursor:pointer;} tr.log-row:hover td{background:var(--panel2);}
+  tr.log-detail td{background:#151b23; font-size:12.5px; color:var(--muted); padding:10px 16px 14px;}
+  .kv{display:grid; grid-template-columns:max-content 1fr; gap:4px 16px;} .kv b{color:var(--text); font-weight:600;}
+  .pager{display:flex; align-items:center; justify-content:center; gap:12px; margin-top:14px; color:var(--muted); font-size:13px;}
+  @media (max-width:720px){
+    .clock{display:none;}
+    header{padding:8px 12px; gap:8px 12px;}
+    .logo{font-size:16px;} .logo-mark{width:26px; height:26px; font-size:13px;}
+    nav{order:3; flex:0 0 100%; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch;}
+    nav a{padding:8px 12px; font-size:14px; white-space:nowrap;}
+    .userbox{margin-left:auto; font-size:12px;}
+    main{padding:12px;}
+    .card{padding:12px;}
+    input,select{font-size:16px;}
+    .btn{min-height:42px;} .btn.small{min-height:36px;}
+    .toast{width:calc(100% - 24px); text-align:center; bottom:calc(16px + env(safe-area-inset-bottom,0px));}
+    .subnav{overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch;}
+    .subnav button{white-space:nowrap;}
+    .chips{overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch;}
+    .chips button{white-space:nowrap;}
+    .rate-row{flex-wrap:wrap; gap:8px;}
+    .rate-row input[id^="rateName"],.rate-row input[id^="editMenuName"]{flex:1 1 100% !important;}
+    .rate-row input{min-width:0;}
+    .emp-row{gap:8px;}
+    .emp-row input{min-width:0;}
+    table.data{min-width:560px;}
+  }
+  @media (max-width:480px){ .userbox span{display:none;} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-mark">☕</div> Billiard Coffee</div>
+  <nav>
+    <a href="/tables.html">Sơ đồ bàn</a>
+    <a href="/resv.html">Đặt bàn</a>
+    <a class="active" href="/manage.html">Quản lý</a>
+  </nav>
+  <div class="clock" id="clock"></div>
+  <div class="userbox"><span>Xin chào, <b id="whoami">…</b></span><button onclick="logout()">Đăng xuất</button></div>
+</header>
+
+<main>
+  <div class="subnav">
+    <button class="active" data-sub="staff">Nhân viên</button>
+    <button data-sub="trans">Giao dịch</button>
+    <button data-sub="rates">Giá bàn</button>
+    <button data-sub="menu">Menu</button>
+    <button data-sub="audit" id="auditTabBtn">📜 Lịch sử</button>
+  </div>
+
+  <div class="subview active" id="sub-staff">
+    <div class="card">
+      <div class="field" style="display:flex; gap:10px; align-items:flex-end;">
+        <div style="flex:1;"><label>Tên nhân viên mới</label><input id="newEmpName" placeholder="VD: Nguyễn Văn A" style="width:100%;"></div>
+        <button class="btn" onclick="addEmployee()">+ Thêm</button>
+      </div>
+    </div>
+    <div style="margin-top:14px;" id="empList"></div>
+  </div>
+
+  <div class="subview" id="sub-trans">
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div><label>Lọc theo</label>
+          <select id="filterMode" onchange="renderTransactions()">
+            <option value="day">Ngày</option>
+            <option value="range">Từ ngày - đến ngày</option>
+            <option value="month">Tháng</option>
+            <option value="all">Tất cả</option>
+          </select>
+        </div>
+        <div id="filterDayWrap"><label>Chọn ngày</label><input type="date" id="filterDay" onchange="renderTransactions()"></div>
+        <div id="filterRangeWrap" style="display:none; gap:10px;">
+          <div><label>Từ ngày</label><input type="date" id="filterFrom" onchange="renderTransactions()"></div>
+          <div><label>Đến ngày</label><input type="date" id="filterTo" onchange="renderTransactions()"></div>
+        </div>
+        <div id="filterMonthWrap" style="display:none;"><label>Chọn tháng</label><input type="month" id="filterMonth" onchange="renderTransactions()"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+      <span style="color:var(--muted); font-size:13.5px;">Tổng doanh thu (theo bộ lọc) · <span id="transTotal" style="font-weight:800; font-size:17px; color:var(--copper2);">0đ</span></span>
+      <button class="btn ghost" onclick="exportExcel()">⬇️ Xuất Excel</button>
+    </div>
+    <div class="card" style="padding:0; overflow:auto;">
+      <table class="data">
+        <thead><tr><th>Thời gian</th><th>Bàn</th><th>Nhân viên</th><th>Phương thức</th><th>Số tiền</th></tr></thead>
+        <tbody id="transBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="subview" id="sub-rates">
+    <p style="color:var(--muted); font-size:13px; margin-top:0;">Sửa giá tại đây — bàn đang mở giữ nguyên giá cũ, bàn mở mới sẽ áp giá mới. Nhớ bấm <b>Lưu</b> để đẩy thay đổi lên hệ thống.</p>
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+        <div style="flex:1; min-width:160px;"><label>Tên hạng bàn mới</label><input id="newRateName" placeholder="VD: Bàn VIP" style="width:100%;"></div>
+        <div style="width:140px;"><label>Giá / giờ (đ)</label><input id="newRatePrice" type="number" min="0" placeholder="60000" style="width:100%;"></div>
+        <button class="btn" onclick="addRate()">+ Thêm hạng</button>
+      </div>
+    </div>
+    <div id="rateList"></div>
+  </div>
+
+  <div class="subview" id="sub-menu">
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+        <div style="flex:1; min-width:160px;"><label>Tên món</label><input id="newMenuName" placeholder="VD: Sinh tố xoài" style="width:100%;"></div>
+        <div style="width:140px;"><label>Giá (đ)</label><input id="newMenuPrice" type="number" min="0" placeholder="30000" style="width:100%;"></div>
+        <button class="btn" onclick="addMenuItem()">+ Thêm món</button>
+      </div>
+    </div>
+    <div style="margin-top:14px;" id="menuList"></div>
+  </div>
+
+  <div class="subview" id="sub-audit">
+    <div class="card" id="auditLockScreen" style="max-width:380px; margin:30px auto; text-align:center; display:none;">
+      <div style="font-size:34px; margin-bottom:6px;">🔒</div>
+      <div style="font-weight:700; margin-bottom:4px;">Lịch sử được bảo vệ riêng</div>
+      <p style="color:var(--muted); font-size:13px; margin:0 0 14px;">Nhập mật khẩu Lịch sử (khác mật khẩu đăng nhập) để xem phần này.</p>
+      <input type="password" id="auditPwInput" placeholder="Mật khẩu Lịch sử" style="width:100%; margin-bottom:10px; text-align:center;" onkeydown="if(event.key==='Enter') unlockAudit();">
+      <button class="btn" style="width:100%;" onclick="unlockAudit()">Mở khoá</button>
+      <div id="auditLockMsg" style="color:var(--bad); font-size:12.5px; margin-top:10px; display:none;"></div>
+    </div>
+    <div id="auditUnlocked" style="display:none;">
+    <p style="color:var(--muted); font-size:13px; margin-top:0;">Mọi thao tác trong app đều được ghi lại tại đây. Lịch sử <b>không thể sửa hay xoá</b> từ giao diện — chỉ xoá/sửa được trực tiếp trong database. Bấm vào 1 dòng để xem chi tiết.</p>
+    <div class="chips" id="auditChips">
+      <button class="active" data-cat="">Tất cả</button>
+      <button data-cat="table">🎱 Quản lý bàn</button>
+      <button data-cat="transaction">💰 Giao dịch</button>
+      <button data-cat="employee">👤 Nhân viên</button>
+      <button data-cat="menu">🍹 Menu</button>
+      <button data-cat="rate">🏷️ Giá bàn</button>
+      <button data-cat="reservation">📅 Đặt bàn</button>
+      <button data-cat="auth">🔐 Đăng nhập</button>
+    </div>
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div><label>Người thực hiện</label><select id="auditActor" onchange="loadAudit(1)"><option value="">Tất cả</option></select></div>
+        <div><label>Từ ngày</label><input type="date" id="auditFrom" onchange="loadAudit(1)"></div>
+        <div><label>Đến ngày</label><input type="date" id="auditTo" onchange="loadAudit(1)"></div>
+        <div style="flex:1; min-width:160px;"><label>Tìm nội dung</label><input id="auditQ" placeholder="VD: huỷ, Bàn 3, Cà phê..." style="width:100%;" oninput="clearTimeout(window._aq); window._aq=setTimeout(()=>loadAudit(1),350)"></div>
+        <button class="btn ghost" onclick="resetAuditFilters()">Xoá lọc</button>
+      </div>
+    </div>
+    <div class="card" style="padding:0; overflow:auto;">
+      <table class="data">
+        <thead><tr><th>Thời gian</th><th>Mục</th><th>Người thực hiện</th><th>Nội dung</th></tr></thead>
+        <tbody id="auditBody"></tbody>
+      </table>
+    </div>
+    <div class="pager"><button class="btn small ghost" id="auditPrev" onclick="loadAudit(auditPage-1)">← Trước</button><span id="auditPageInfo"></span><button class="btn small ghost" id="auditNext" onclick="loadAudit(auditPage+1)">Sau →</button></div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+async function api(path, opts={}){
+  const res = await fetch(path.startsWith('/api')?path:'/api'+path, {
+    headers:{'Content-Type':'application/json'}, credentials:'same-origin', ...opts
+  });
+  if(res.status===401){ location.href='/login.html'; throw new Error('Chưa đăng nhập'); }
+  let data=null; try{ data = await res.json(); }catch(e){}
+  if(!res.ok) throw new Error((data&&data.error)||'Có lỗi xảy ra.');
+  return data;
+}
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.style.display='block';
+  clearTimeout(toast._t); toast._t=setTimeout(()=>el.style.display='none', 2500);
+}
+function logout(){ api('/logout',{method:'POST'}).finally(()=>location.href='/login.html'); }
+function fmt(n){ return Math.round(n).toLocaleString('vi-VN')+'đ'; }
+function tickClock(){
+  const now=new Date();
+  document.getElementById('clock').innerHTML = now.toLocaleTimeString('vi-VN',{hour12:false})+'<br>'+now.toLocaleDateString('vi-VN');
+}
+
+let rates=[], MENU=[], employees=[];
+
+async function init(){
+  const { user } = await api('/session');
+  if(!user){ location.href='/login.html'; return; }
+  document.getElementById('whoami').textContent = user.full_name || user.username;
+  [rates, MENU, employees] = await Promise.all([ api('/rates'), api('/menu'), api('/employees') ]);
+  renderEmployees(); renderRates(); renderMenu(); renderTransactions();
+  tickClock(); setInterval(tickClock,1000);
+}
+
+/* ---- Nhân viên ---- */
+async function addEmployee(){
+  const input=document.getElementById('newEmpName');
+  const name=input.value.trim();
+  if(!name) return;
+  try{ await api('/employees',{method:'POST',body:JSON.stringify({name})}); input.value=''; employees=await api('/employees'); renderEmployees(); }
+  catch(e){ toast(e.message); }
+}
+async function removeEmployee(id){
+  if(!confirm('Xoá nhân viên này?')) return;
+  try{ await api('/employees/'+id,{method:'DELETE'}); employees=employees.filter(e=>e.id!==id); renderEmployees(); }
+  catch(e){ toast(e.message); }
+}
+function editEmployee(id){ employees.forEach(e=>e.editing=(e.id===id)); renderEmployees(); }
+function cancelEditEmployee(id){ const e=employees.find(x=>x.id===id); if(e) e.editing=false; renderEmployees(); }
+async function saveEmployee(id){
+  const name=document.getElementById('editEmpName-'+id).value.trim();
+  if(!name){ toast('Nhập tên nhân viên.'); return; }
+  try{ await api('/employees/'+id,{method:'PUT',body:JSON.stringify({name})}); employees=await api('/employees'); renderEmployees(); }
+  catch(e){ toast(e.message); }
+}
+function renderEmployees(){
+  document.getElementById('empList').innerHTML = employees.length ? employees.map(e=>{
+    if(e.editing){
+      return '<div class="emp-row"><input id="editEmpName-'+e.id+'" value="'+e.name+'" style="flex:1; margin-right:10px;">'+
+        '<div style="display:flex; gap:8px;"><button class="btn small" onclick="saveEmployee('+e.id+')">Lưu</button>'+
+        '<button class="btn small ghost" onclick="cancelEditEmployee('+e.id+')">Huỷ</button></div></div>';
+    }
+    return '<div class="emp-row"><span>'+e.name+'</span>'+
+      '<div style="display:flex; gap:8px;"><button class="btn small ghost" onclick="editEmployee('+e.id+')">Sửa</button>'+
+      '<button class="btn small danger" onclick="removeEmployee('+e.id+')">Xoá</button></div></div>';
+  }).join('') : '<div class="empty-state"><div class="ic">👤</div><div>Chưa có nhân viên nào</div></div>';
+}
+
+/* ---- Giá bàn ---- */
+function renderRates(){
+  document.getElementById('rateList').innerHTML = rates.length ? rates.map(r=>
+    '<div class="rate-row"><input id="rateName-'+r.id+'" value="'+r.name+'" style="flex:1;">'+
+    '<input id="ratePrice-'+r.id+'" type="number" value="'+r.per_hour+'"><span style="color:var(--muted);">đ / giờ</span>'+
+    '<button class="btn small" onclick="saveRate('+r.id+')">Lưu</button>'+
+    '<button class="btn small danger" onclick="removeRate('+r.id+')">Xoá</button></div>').join('')
+    : '<div class="empty-state"><div class="ic">💵</div><div>Chưa có hạng giá nào</div></div>';
+}
+async function saveRate(id){
+  const name=document.getElementById('rateName-'+id).value.trim();
+  const per_hour=parseInt(document.getElementById('ratePrice-'+id).value)||0;
+  if(!name){ toast('Nhập tên hạng bàn.'); return; }
+  try{ await api('/rates/'+id,{method:'PUT',body:JSON.stringify({name,per_hour})}); rates=await api('/rates'); renderRates(); }
+  catch(e){ toast(e.message); }
+}
+async function removeRate(id){
+  if(!confirm('Xoá hạng giá này? Bàn nào đang dùng hạng này sẽ không còn gắn giá.')) return;
+  try{ await api('/rates/'+id,{method:'DELETE'}); rates=rates.filter(r=>r.id!==id); renderRates(); }
+  catch(e){ toast(e.message); }
+}
+async function addRate(){
+  const nameInput=document.getElementById('newRateName');
+  const priceInput=document.getElementById('newRatePrice');
+  const name=nameInput.value.trim();
+  const per_hour=parseInt(priceInput.value)||0;
+  if(!name){ toast('Nhập tên hạng bàn.'); return; }
+  try{
+    await api('/rates',{method:'POST',body:JSON.stringify({name,per_hour})});
+    nameInput.value=''; priceInput.value='';
+    rates=await api('/rates'); renderRates();
+  }catch(e){ toast(e.message); }
+}
+
+/* ---- Menu (chỉ sửa được khi bấm nút "Sửa") ---- */
+function editMenuItem(id){ MENU.forEach(m=>m.editing=(m.id===id)); renderMenu(); }
+function cancelEditMenuItem(id){ const m=MENU.find(x=>x.id===id); if(m) m.editing=false; renderMenu(); }
+async function saveMenuItem(id){
+  const name=document.getElementById('editMenuName-'+id).value.trim();
+  const price=parseInt(document.getElementById('editMenuPrice-'+id).value)||0;
+  if(!name){ toast('Nhập tên món.'); return; }
+  try{ await api('/menu/'+id,{method:'PUT',body:JSON.stringify({name,price})}); MENU=await api('/menu'); renderMenu(); }
+  catch(e){ toast(e.message); }
+}
+async function addMenuItem(){
+  const nameInput=document.getElementById('newMenuName');
+  const priceInput=document.getElementById('newMenuPrice');
+  const name=nameInput.value.trim();
+  const price=parseInt(priceInput.value)||0;
+  if(!name){ toast('Nhập tên món.'); return; }
+  try{
+    await api('/menu',{method:'POST',body:JSON.stringify({name,price})});
+    nameInput.value=''; priceInput.value='';
+    MENU=await api('/menu'); renderMenu();
+  }catch(e){ toast(e.message); }
+}
+async function removeMenuItem(id){
+  try{ await api('/menu/'+id,{method:'DELETE'}); MENU=MENU.filter(m=>m.id!==id); renderMenu(); }
+  catch(e){ toast(e.message); }
+}
+function renderMenu(){
+  document.getElementById('menuList').innerHTML = MENU.length ? MENU.map(m=>{
+    if(m.editing){
+      return '<div class="rate-row"><input id="editMenuName-'+m.id+'" value="'+m.name+'" style="flex:1;">'+
+        '<input id="editMenuPrice-'+m.id+'" type="number" value="'+m.price+'"> đ'+
+        '<button class="btn small" onclick="saveMenuItem('+m.id+')">Lưu</button>'+
+        '<button class="btn small ghost" onclick="cancelEditMenuItem('+m.id+')">Huỷ</button></div>';
+    }
+    return '<div class="rate-row"><div style="flex:1;">'+m.name+'</div>'+
+      '<div style="min-width:90px; color:var(--copper2); font-weight:700;">'+fmt(m.price)+'</div>'+
+      '<button class="btn small ghost" onclick="editMenuItem('+m.id+')">Sửa</button>'+
+      '<button class="btn small danger" onclick="removeMenuItem('+m.id+')">Xoá</button></div>';
+  }).join('') : '<div class="empty-state"><div class="ic">🍹</div><div>Chưa có món nào trong menu</div></div>';
+}
+
+/* ---- Giao dịch ---- */
+function payLabel(m){ return m==='cash' ? 'Tiền mặt' : m==='transfer' ? 'Chuyển khoản' : '—'; }
+function buildFilterParams(){
+  const mode=document.getElementById('filterMode').value;
+  document.getElementById('filterDayWrap').style.display = mode==='day' ? 'block':'none';
+  document.getElementById('filterRangeWrap').style.display = mode==='range' ? 'flex':'none';
+  document.getElementById('filterMonthWrap').style.display = mode==='month' ? 'block':'none';
+  const params=new URLSearchParams({mode});
+  if(mode==='day'){ const v=document.getElementById('filterDay').value; if(v) params.set('day',v); }
+  else if(mode==='range'){
+    const from=document.getElementById('filterFrom').value, to=document.getElementById('filterTo').value;
+    if(from) params.set('from',from); if(to) params.set('to',to);
+  } else if(mode==='month'){ const v=document.getElementById('filterMonth').value; if(v) params.set('month',v); }
+  return params;
+}
+async function renderTransactions(){
+  const params=buildFilterParams();
+  let list=[];
+  try{ list = await api('/transactions?'+params.toString()); }catch(e){ toast(e.message); }
+
+  document.getElementById('transBody').innerHTML = list.length ? list.map(t=>
+    '<tr><td>'+new Date(t.created_at).toLocaleString('vi-VN')+'</td><td>Bàn '+t.table_id+'</td><td>'+(t.employee_name||'—')+'</td><td>'+payLabel(t.method)+'</td><td>'+fmt(t.amount)+'</td></tr>'
+  ).join('') : '<tr><td colspan="5" style="color:var(--muted); text-align:center; padding:24px;">Chưa có giao dịch nào</td></tr>';
+  document.getElementById('transTotal').textContent = fmt(list.reduce((s,t)=>s+Number(t.amount),0));
+}
+function exportExcel(){
+  const params=buildFilterParams();
+  window.location.href = '/api/transactions/export?'+params.toString();
+}
+
+/* ---- Lịch sử hoạt động (chỉ đọc, có mật khẩu riêng) ---- */
+let auditIsUnlocked=false;
+
+// Ngồi im (không rê chuột/gõ phím/chạm/cuộn) quá 10 phút trên trang Lịch sử
+// thì tự khoá lại, phải nhập mật khẩu mới xem/thao tác tiếp được.
+const AUDIT_IDLE_MS = 10*60*1000;
+let auditIdleTimer=null;
+function auditResetIdleTimer(){
+  if(!auditIsUnlocked) return;
+  clearTimeout(auditIdleTimer);
+  auditIdleTimer=setTimeout(auditLockNow, AUDIT_IDLE_MS);
+}
+function auditLockNow(){
+  if(!auditIsUnlocked) return;
+  auditIsUnlocked=false;
+  clearTimeout(auditIdleTimer);
+  api('/audit/lock',{method:'POST'}).catch(()=>{}); // báo cho server khoá lại luôn, không cần đợi kết quả
+  document.getElementById('auditLockScreen').style.display='block';
+  document.getElementById('auditUnlocked').style.display='none';
+  document.getElementById('auditBody').innerHTML=''; // không để lộ dữ liệu cũ còn nằm trong khung đã ẩn
+  const msg=document.getElementById('auditLockMsg');
+  msg.textContent='Đã tự khoá do không thao tác quá 10 phút — nhập lại mật khẩu để tiếp tục.';
+  msg.style.display='block';
+  document.getElementById('auditPwInput').value='';
+}
+['mousemove','mousedown','keydown','touchstart','scroll'].forEach(evt=>
+  document.addEventListener(evt, auditResetIdleTimer, { passive:true }));
+
+async function openAuditTab(){
+  document.getElementById('auditLockMsg').style.display='none';
+  document.getElementById('auditPwInput').value='';
+  try{
+    const st=await api('/audit/status');
+    if(!st.configured){
+      document.getElementById('auditLockScreen').style.display='block';
+      document.getElementById('auditUnlocked').style.display='none';
+      const msg=document.getElementById('auditLockMsg');
+      msg.textContent='Chưa thiết lập mật khẩu Lịch sử — nhờ chủ quán chạy lệnh trên máy chủ: node scripts/set-audit-password.js "MatKhau..."';
+      msg.style.display='block';
+      document.getElementById('auditPwInput').style.display='none';
+      document.querySelector('#auditLockScreen .btn').style.display='none';
+      return;
+    }
+    if(st.unlocked){ auditIsUnlocked=true; showAuditUnlocked(); loadAuditActors(); loadAudit(1); auditResetIdleTimer(); }
+    else{ auditIsUnlocked=false; clearTimeout(auditIdleTimer); document.getElementById('auditLockScreen').style.display='block'; document.getElementById('auditUnlocked').style.display='none'; }
+  }catch(e){ toast(e.message); }
+}
+function showAuditUnlocked(){
+  document.getElementById('auditLockScreen').style.display='none';
+  document.getElementById('auditUnlocked').style.display='block';
+}
+async function unlockAudit(){
+  const pw=document.getElementById('auditPwInput').value;
+  const msg=document.getElementById('auditLockMsg');
+  if(!pw) return;
+  try{
+    await api('/audit/unlock',{method:'POST',body:JSON.stringify({password:pw})});
+    auditIsUnlocked=true; msg.style.display='none';
+    showAuditUnlocked(); loadAuditActors(); loadAudit(1); auditResetIdleTimer();
+  }catch(e){ msg.textContent=e.message; msg.style.display='block'; }
+}
+const CAT_LABEL={table:'Quản lý bàn',transaction:'Giao dịch',employee:'Nhân viên',menu:'Menu',rate:'Giá bàn',reservation:'Đặt bàn',auth:'Đăng nhập'};
+const DANGER_ACTIONS=['cancel','delete','delete_table','login_failed','remove'];
+let auditCat='', auditPage=1;
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function loadAuditActors(){
+  try{
+    const list=await api('/audit/actors'); const sel=document.getElementById('auditActor'); const cur=sel.value;
+    sel.innerHTML='<option value="">Tất cả</option>'+list.map(a=>'<option value="'+esc(a)+'">'+esc(a)+'</option>').join('');
+    sel.value=cur;
+  }catch(e){}
+}
+function resetAuditFilters(){
+  ['auditActor','auditFrom','auditTo','auditQ'].forEach(id=>document.getElementById(id).value='');
+  auditCat=''; document.querySelectorAll('#auditChips button').forEach(x=>x.classList.toggle('active',x.dataset.cat===''));
+  loadAudit(1);
+}
+async function loadAudit(page){
+  if(page<1) return;
+  auditPage=page;
+  const p=new URLSearchParams({page});
+  if(auditCat) p.set('category',auditCat);
+  const a=document.getElementById('auditActor').value, f=document.getElementById('auditFrom').value, t=document.getElementById('auditTo').value, q=document.getElementById('auditQ').value.trim();
+  if(a) p.set('actor',a); if(f) p.set('from',f); if(t) p.set('to',t); if(q) p.set('q',q);
+  try{
+    const d=await api('/audit?'+p.toString());
+    auditPage=d.page;
+    document.getElementById('auditBody').innerHTML = d.rows.length ? d.rows.map(r=>{
+      let det=''; try{ det=r.details?JSON.parse(r.details):null; }catch(e){}
+      const kv = det ? '<div class="kv">'+Object.keys(det).map(k=>'<b>'+esc(k)+'</b><span>'+esc(det[k])+'</span>').join('')+'</div>' : '';
+      const meta='<div style="margin-top:'+(kv?'8':'0')+'px;">Mã log #'+r.id+(r.ip?' · IP '+esc(r.ip):'')+'</div>';
+      const danger=DANGER_ACTIONS.includes(r.action);
+      return '<tr class="log-row" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'table-row\'?\'none\':\'table-row\'">'+
+        '<td style="white-space:nowrap;">'+new Date(r.created_at).toLocaleString('vi-VN')+'</td>'+
+        '<td><span class="badge b-'+r.category+'">'+(CAT_LABEL[r.category]||r.category)+'</span></td>'+
+        '<td>'+esc(r.actor_name||'—')+'</td>'+
+        '<td class="'+(danger?'act-danger':'')+'">'+esc(r.description)+'</td></tr>'+
+        '<tr class="log-detail" style="display:none;"><td colspan="4">'+kv+meta+'</td></tr>';
+    }).join('') : '<tr><td colspan="4" style="color:var(--muted); text-align:center; padding:24px;">Chưa có lịch sử nào khớp bộ lọc</td></tr>';
+    document.getElementById('auditPageInfo').textContent='Trang '+d.page+'/'+d.pages+' · '+d.total+' dòng';
+    document.getElementById('auditPrev').disabled = d.page<=1;
+    document.getElementById('auditNext').disabled = d.page>=d.pages;
+  }catch(e){
+    if(e.message==='locked'){
+      auditIsUnlocked=false; clearTimeout(auditIdleTimer);
+      document.getElementById('auditLockScreen').style.display='block'; document.getElementById('auditUnlocked').style.display='none';
+      document.getElementById('auditBody').innerHTML='';
+      const msg=document.getElementById('auditLockMsg');
+      msg.textContent='Phiên xem Lịch sử đã hết hạn — nhập lại mật khẩu để tiếp tục.'; msg.style.display='block';
+    }
+    else toast(e.message);
+  }
+}
+document.querySelectorAll('#auditChips button').forEach(b=>{
+  b.onclick=()=>{
+    auditCat=b.dataset.cat;
+    document.querySelectorAll('#auditChips button').forEach(x=>x.classList.toggle('active',x===b));
+    loadAudit(1);
+  };
+});
+
+document.querySelectorAll('.subnav button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.subnav button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.subview').forEach(v=>v.classList.remove('active'));
+    document.getElementById('sub-'+b.dataset.sub).classList.add('active');
+    if(b.dataset.sub==='trans') renderTransactions();
+    if(b.dataset.sub==='audit'){ openAuditTab(); }
+  };
+});
+
+init();
+</script>
+</body>
+</html>

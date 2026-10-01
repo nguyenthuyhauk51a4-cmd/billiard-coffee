@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sơ đồ bàn — Billiard Coffee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#11161d; --panel:#1a212b; --panel2:#212a36; --line:#2b3542;
+    --empty:#e9e3d3; --empty-text:#3a3226;
+    --busy:#2f6fed; --busy2:#1c4fc4;
+    --copper:#cf7a3a; --copper2:#e69a5c;
+    --text:#eef1f5; --muted:#8d97a6;
+    --good:#3fbf74; --warn:#e0a53e; --bad:#e0523e;
+    --card-h:clamp(128px, calc((100vh - 232px) / 3 - 10px), 240px);
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+    box-sizing:border-box;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:'Be Vietnam Pro',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
+  header{display:flex; align-items:center; gap:24px; padding:10px 20px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#141b23,#11161d); position:sticky; top:env(safe-area-inset-top,0px); z-index:10; flex-wrap:wrap;}
+  .logo{display:flex; align-items:center; gap:10px; font-weight:800; font-size:19px;}
+  .logo-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--copper),var(--copper2));display:flex;align-items:center;justify-content:center;font-size:15px;}
+  nav{display:flex; gap:4px; flex:1; flex-wrap:wrap;}
+  nav a{color:var(--muted); font-family:inherit; font-size:14.5px; font-weight:600; padding:9px 14px; border-radius:8px; cursor:pointer; text-decoration:none;}
+  nav a.active{color:var(--text); background:var(--panel2);}
+  .clock{text-align:right; color:var(--muted); font-size:12.5px; line-height:1.4;}
+  .userbox{display:flex; align-items:center; gap:10px; color:var(--muted); font-size:13px;}
+  .userbox b{color:var(--text);}
+  .userbox button{background:var(--panel2); border:1px solid var(--line); color:var(--text); font-family:inherit; font-size:12.5px; font-weight:600; padding:7px 11px; border-radius:8px; cursor:pointer;}
+  main{padding:12px 20px 16px; max-width:1200px; margin:0 auto;}
+  .alert-bar{display:flex; flex-direction:column; gap:8px; margin-bottom:10px;}
+  .alert{display:flex; justify-content:space-between; align-items:center; gap:10px; background:rgba(224,165,62,.13); border:1px solid rgba(224,165,62,.4); color:var(--warn); padding:11px 14px; border-radius:10px; font-size:13.5px; font-weight:600;}
+  .alert.bad{background:rgba(224,82,62,.13); border-color:rgba(224,82,62,.4); color:var(--bad);}
+  .topbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:10px; flex-wrap:wrap;}
+  .section-title{font-size:15px; font-weight:700; margin:0;}
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+  .table-card{height:var(--card-h); border-radius:12px; padding:10px 12px; cursor:pointer; display:flex; flex-direction:column; justify-content:space-between; background:var(--empty); color:var(--empty-text); border:1px solid rgba(0,0,0,.06); position:relative; transition:transform .12s ease;}
+  .table-card:hover{transform:translateY(-2px);}
+  .table-card.busy{background:linear-gradient(155deg,var(--busy),var(--busy2)); color:#eef4ff;}
+  .table-card.soon{background:linear-gradient(155deg,var(--warn),#b97a1f); color:#241a06;}
+  .table-card.editing{outline:2px dashed var(--copper); outline-offset:2px;}
+  .table-card .num{font-size:22px; font-weight:800; line-height:1.15;}
+  .table-card .status{font-size:11.5px; font-weight:600; opacity:.85;}
+  .table-card .meta-row{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
+  .table-card .timer{font-size:13px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .table-card .guests{font-size:11px; font-weight:600; opacity:.85;}
+  .card-actions{display:flex; gap:6px; margin-top:6px;}
+  .card-actions button{flex:1; border:none; border-radius:7px; padding:5px 6px; font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer; background:rgba(255,255,255,.22); color:inherit; white-space:nowrap;}
+  .card-actions button:hover{background:rgba(255,255,255,.34);}
+  .table-card.soon .card-actions button{background:rgba(0,0,0,.14);}
+  .badge-res{position:absolute; top:8px; right:8px; background:var(--copper); color:#1a1208; font-size:10.5px; font-weight:800; padding:2px 6px; border-radius:6px;}
+  .badge-note{position:absolute; top:8px; left:8px; font-size:13px;}
+  .badge-del{position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:999px; background:var(--bad); color:#fff; border:none; font-weight:800; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
+  .add-table-card{height:var(--card-h); border-radius:12px; border:2px dashed var(--line); display:flex; align-items:center; justify-content:center; color:var(--muted); font-weight:700; font-size:14px; cursor:pointer;}
+  .add-table-card:hover{border-color:var(--copper); color:var(--copper2);}
+  .segments-list{margin-top:6px; font-size:12.5px; color:var(--muted); display:flex; flex-direction:column; gap:3px;}
+  .segment-row{display:flex; justify-content:space-between; padding:8px 10px; background:var(--panel2); border-radius:8px; font-size:13px;}
+  .segment-row.current{color:var(--copper2); font-weight:700;}
+  .stats-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-bottom:10px;}
+  .stat-chip{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:7px 12px;}
+  .stat-chip .n{font-size:18px; font-weight:800; color:var(--copper2);}
+  .stat-chip .l{font-size:11.5px; color:var(--muted); font-weight:600; margin-top:2px;}
+  .btn{background:var(--copper); color:#1a1208; border:none; border-radius:9px; padding:10px 16px; font-family:inherit; font-weight:700; font-size:14px; cursor:pointer;}
+  .btn.ghost{background:var(--panel2); color:var(--text); border:1px solid var(--line);}
+  .btn.small{padding:6px 10px; font-size:12.5px; border-radius:7px;}
+  .btn:disabled{opacity:.5; cursor:default;}
+  input,select{background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:9px 11px; font-family:inherit; font-size:13.5px;}
+  label{font-size:12.5px; color:var(--muted); font-weight:600; display:block; margin-bottom:5px;}
+  .field{margin-bottom:12px;}
+  .overlay{position:fixed; inset:0; background:rgba(6,9,12,.55); display:none; align-items:flex-end; justify-content:flex-end; z-index:50;}
+  .overlay.open{display:flex;}
+  .drawer{width:min(400px,100%); height:100%; background:var(--panel); border-left:1px solid var(--line); padding:20px; overflow:auto; padding-top:calc(20px + env(safe-area-inset-top,0px));}
+  .drawer h3{margin:0 0 4px; font-size:20px;}
+  .drawer .sub{color:var(--muted); font-size:13px; margin-bottom:16px;}
+  .close-x{float:right; background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer;}
+  .rate-pick{display:flex; flex-direction:column; gap:10px; margin-bottom:16px;}
+  .rate-pick button{background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:14px; border-radius:10px; font-family:inherit; font-weight:700; font-size:14.5px; cursor:pointer; display:flex; justify-content:space-between;}
+  .rate-pick button span{color:var(--copper2);}
+  .item-row{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--line);}
+  .item-row button{background:var(--panel2); border:1px solid var(--line); color:var(--text); width:26px; height:26px; border-radius:7px; cursor:pointer; font-weight:700;}
+  .total-box{margin-top:16px; padding:14px; background:var(--panel2); border-radius:10px; display:flex; justify-content:space-between; font-weight:800; font-size:16px; color:var(--copper2);}
+  .drawer-actions{display:flex; gap:10px; margin-top:16px;}
+  .drawer-actions .btn{flex:1;}
+  .pay-pick{display:flex; gap:10px; margin-top:8px;}
+  .pay-pick button{flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:12px; border-radius:10px; font-family:inherit; font-weight:700; font-size:13.5px; cursor:pointer;}
+  .pay-pick button.sel{background:var(--copper); border-color:var(--copper); color:#1a1208;}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--bad); color:#fff; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:600; z-index:100; display:none;}
+  @media (max-width:720px){ .clock{display:none;} }
+  @media (max-width:720px){
+    header{padding:8px 12px; gap:8px 12px;}
+    .logo{font-size:16px;} .logo-mark{width:26px; height:26px; font-size:13px;}
+    nav{order:3; flex:0 0 100%; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch;}
+    nav a{padding:8px 12px; font-size:14px; white-space:nowrap;}
+    .userbox{margin-left:auto; font-size:12px;}
+    main{padding:10px 12px 16px;}
+    .stats-row{grid-template-columns:repeat(3,1fr);}
+    .stat-chip{padding:6px 8px;} .stat-chip .n{font-size:16px;} .stat-chip .l{font-size:10.5px;}
+    .alert{flex-wrap:wrap; font-size:12.5px;}
+    input,select{font-size:16px;}
+    .btn{min-height:42px;}
+    .drawer{width:100%; border-left:none; padding:16px; padding-top:calc(16px + env(safe-area-inset-top,0px)); padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));}
+    .toast{width:calc(100% - 24px); text-align:center; bottom:calc(16px + env(safe-area-inset-bottom,0px));}
+  }
+  @media (max-width:560px){
+    .grid{grid-template-columns:repeat(2,1fr); gap:10px;}
+    .table-card,.add-table-card{height:auto; min-height:140px;}
+    .card-actions button{padding:8px 6px; font-size:12px;}
+    .userbox span{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-mark">☕</div> Billiard Coffee</div>
+  <nav>
+    <a class="active" href="/tables.html">Sơ đồ bàn</a>
+    <a href="/resv.html">Đặt bàn</a>
+    <a href="/manage.html">Quản lý</a>
+  </nav>
+  <div class="clock" id="clock"></div>
+  <div class="userbox"><span>Xin chào, <b id="whoami">…</b></span><button onclick="logout()">Đăng xuất</button></div>
+</header>
+
+<main>
+  <div class="alert-bar" id="alertBar"></div>
+  <div class="stats-row" id="statsRow"></div>
+  <div class="topbar">
+    <p class="section-title">Sơ đồ bàn · <span id="tableCount" style="color:var(--muted); font-weight:500;"></span></p>
+    <button class="btn ghost small" id="editLayoutBtn" onclick="toggleEditLayout()">🛠️ Sửa sơ đồ bàn</button>
+  </div>
+  <div class="grid" id="tableGrid"></div>
+</main>
+
+<div class="overlay" id="overlay"><div class="drawer" id="drawer"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+async function api(path, opts={}){
+  const res = await fetch(path.startsWith('/api')?path:'/api'+path, {
+    headers:{'Content-Type':'application/json'}, credentials:'same-origin', ...opts
+  });
+  if(res.status===401){ location.href='/login.html'; throw new Error('Chưa đăng nhập'); }
+  let data=null; try{ data = await res.json(); }catch(e){}
+  if(!res.ok) throw new Error((data&&data.error)||'Có lỗi xảy ra.');
+  return data;
+}
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.style.display='block';
+  clearTimeout(toast._t); toast._t=setTimeout(()=>el.style.display='none', 2500);
+}
+function logout(){ api('/logout',{method:'POST'}).finally(()=>location.href='/login.html'); }
+
+let rates=[], MENU=[], employees=[], tables=[], reservations=[];
+let activeTableId=null, openDraft=null, payDraft=null, empSelectId=null;
+let editLayoutMode=false;
+
+function tableLabel(t){ return t.label || ('Bàn '+t.id); }
+
+function fmt(n){ return Math.round(n).toLocaleString('vi-VN')+'đ'; }
+function elapsedStr(ms){
+  const m=Math.floor(ms/60000);
+  const d=Math.floor(m/1440), h=Math.floor((m%1440)/60), mm=m%60;
+  if(d>0) return d+' ngày';
+  return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(Math.floor((ms%60000)/1000)).padStart(2,'0');
+}
+function activeTable(){ return tables.find(t=>t.id===activeTableId) || null; }
+
+async function init(){
+  const { user } = await api('/session');
+  if(!user){ location.href='/login.html'; return; }
+  document.getElementById('whoami').textContent = user.full_name || user.username;
+  // Dữ liệu bàn thuộc trang này; nhân viên/hạng giá/menu/đặt bàn chỉ ĐỌC (thuộc trang Quản lý & Đặt bàn).
+  [rates, MENU, employees, tables, reservations] = await Promise.all([
+    api('/rates'), api('/menu'), api('/employees'), api('/tables'), api('/reservations')
+  ]);
+  empSelectId = employees[0]?.id || null;
+  renderGrid();
+  tickClock(); setInterval(tickClock,1000);
+  setInterval(tickTimers,1000);
+  setInterval(refreshTables, 8000);
+}
+async function refreshTables(){
+  try{
+    tables = await api('/tables');
+    reservations = await api('/reservations');
+    if(!document.getElementById('overlay').classList.contains('open')) renderGrid();
+    else renderAlerts();
+  }catch(e){}
+}
+
+function isSoonEnd(t){
+  if(!t.busy || !t.expected_end) return false;
+  const rem = new Date(t.expected_end).getTime() - Date.now();
+  return rem>0 && rem<=15*60000;
+}
+function reservationsSoonCount(){
+  const now=Date.now();
+  return reservations.filter(r=>{ const diff=new Date(r.reserve_time).getTime()-now; return diff<=30*60000 && diff>-60*60000; }).length;
+}
+function toggleEditLayout(){
+  editLayoutMode=!editLayoutMode;
+  document.getElementById('editLayoutBtn').textContent = editLayoutMode ? '✅ Xong' : '🛠️ Sửa sơ đồ bàn';
+  document.getElementById('editLayoutBtn').className = editLayoutMode ? 'btn small' : 'btn ghost small';
+  renderGrid();
+}
+async function addTable(){
+  const label = prompt('Tên bàn mới (để trống thì tự đặt số thứ tự):','');
+  if(label===null) return;
+  try{
+    const t = await api('/tables',{method:'POST',body:JSON.stringify({label})});
+    tables.push(t);
+    renderGrid();
+  }catch(e){ toast(e.message); }
+}
+async function renameTable(id){
+  const t=tables.find(x=>x.id===id);
+  const label = prompt('Đổi tên bàn (để trống để hiện lại "Bàn '+id+'"):', t.label||'');
+  if(label===null) return;
+  try{
+    await api('/tables/'+id+'/label',{method:'PUT',body:JSON.stringify({label})});
+    t.label = label.trim() || null;
+    renderGrid();
+  }catch(e){ toast(e.message); }
+}
+async function deleteTable(id, evt){
+  if(evt) evt.stopPropagation();
+  if(!confirm('Xoá '+tableLabel(tables.find(x=>x.id===id))+'? Chỉ xoá được bàn đang trống.')) return;
+  try{
+    await api('/tables/'+id,{method:'DELETE'});
+    tables=tables.filter(t=>t.id!==id);
+    renderGrid();
+  }catch(e){ toast(e.message); }
+}
+function renderGrid(){
+  const grid=document.getElementById('tableGrid');
+  grid.innerHTML='';
+  let busyCount=0, guestsTotal=0, soonCount=0;
+  tables.forEach(t=>{
+    if(t.busy){ busyCount++; guestsTotal += (t.guests||0); }
+    const soon=isSoonEnd(t);
+    if(soon) soonCount++;
+    const res=reservations.find(r=>r.table_id===t.id);
+    const el=document.createElement('div');
+    el.className='table-card'+(t.busy?(soon?' soon':' busy'):'')+(editLayoutMode?' editing':'');
+    el.onclick=()=> editLayoutMode ? renameTable(t.id) : openDrawer(t.id);
+    el.innerHTML=`
+      ${res?'<div class="badge-res">Đặt '+res.reserve_time.slice(11,16)+'</div>':''}
+      ${t.note?'<div class="badge-note" title="'+t.note+'">📝</div>':''}
+      ${editLayoutMode && !t.busy?'<button class="badge-del" onclick="deleteTable('+t.id+',event)" title="Xoá bàn">✕</button>':''}
+      <div class="num">${tableLabel(t)}</div>
+      <div>
+        <div class="status">${editLayoutMode?'Bấm để đổi tên':(t.busy?(soon?'Sắp hết giờ':'Đang phục vụ'):'Bàn trống')}</div>
+        ${t.busy?'<div class="meta-row"><span class="timer" data-id="'+t.id+'">'+elapsedStr(Date.now()-new Date(t.start_time).getTime())+'</span><span class="guests">'+(t.guests||0)+' khách</span></div>':''}
+      </div>
+      ${t.busy && !editLayoutMode?'<div class="card-actions"><button onclick="cutTable('+t.id+',event)">✂️ Cắt bàn</button><button onclick="addExtraTime('+t.id+',event)">⏱️ Thêm giờ</button></div>':''}`;
+    grid.appendChild(el);
+  });
+  if(editLayoutMode){
+    const addEl=document.createElement('div');
+    addEl.className='add-table-card';
+    addEl.onclick=addTable;
+    addEl.innerHTML='+ Thêm bàn';
+    grid.appendChild(addEl);
+  }
+  const empty=tables.length-busyCount;
+  document.getElementById('tableCount').textContent = `${busyCount} đang phục vụ / ${tables.length} bàn`;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-chip"><div class="n">${busyCount}</div><div class="l">Bàn đang chơi</div></div>
+    <div class="stat-chip"><div class="n">${empty}</div><div class="l">Bàn đang trống</div></div>
+    <div class="stat-chip"><div class="n">${soonCount}</div><div class="l">Bàn sắp hết giờ</div></div>
+    <div class="stat-chip"><div class="n">${reservationsSoonCount()}</div><div class="l">Khách đặt trước sắp đến</div></div>
+    <div class="stat-chip"><div class="n">${guestsTotal}</div><div class="l">Khách đang trong quán</div></div>`;
+  renderAlerts();
+}
+function segmentsPastTotal(t){
+  return (t.segments||[]).reduce((s,seg)=> s + Number(seg.time_amount) + Number(seg.drinks_amount), 0);
+}
+function currentSegmentTime(t){
+  if(!t.busy || !t.rate_per_hour || !t.segment_start_time) return 0;
+  return (Date.now()-new Date(t.segment_start_time).getTime())/3600000 * t.rate_per_hour;
+}
+function currentSegmentDrinks(t){
+  let total=0; (t.orders||[]).forEach(o=>{ total += o.price*o.qty; }); return total;
+}
+function tableTotal(t){
+  return segmentsPastTotal(t) + currentSegmentTime(t) + currentSegmentDrinks(t);
+}
+function tickTimers(){
+  document.querySelectorAll('.timer').forEach(el=>{
+    const t=tables.find(x=>x.id==el.dataset.id);
+    if(t&&t.busy) el.textContent=elapsedStr(Date.now()-new Date(t.start_time).getTime());
+  });
+  const t=activeTable();
+  if(t && t.busy){
+    const box=document.getElementById('orderingTotalValue');
+    if(box) box.textContent=fmt(tableTotal(t));
+    const curSeg=document.getElementById('paySegCurrentValue');
+    if(curSeg) curSeg.textContent=fmt(currentSegmentTime(t)+currentSegmentDrinks(t));
+    const grand=document.getElementById('payGrandTotal');
+    if(grand) grand.textContent=fmt(tableTotal(t));
+  }
+  renderAlerts();
+}
+
+function openDrawer(id){
+  activeTableId=id; openDraft=null; payDraft=null;
+  document.getElementById('overlay').classList.add('open');
+  renderDrawer();
+}
+function closeDrawer(){
+  document.getElementById('overlay').classList.remove('open');
+  activeTableId=null; openDraft=null; payDraft=null;
+}
+function renderDrawer(){
+  const t=activeTable(); const d=document.getElementById('drawer');
+  if(!t) return;
+
+  if(!t.busy && !openDraft){
+    d.innerHTML=`
+      <button class="close-x" onclick="closeDrawer()">✕</button>
+      <h3>${tableLabel(t)}</h3>
+      <div class="sub">Chọn hạng bàn để mở bàn</div>
+      <div class="rate-pick">
+        ${rates.map(r=>'<button onclick="pickRate('+r.id+')">'+r.name+' <span>'+fmt(r.per_hour)+'/giờ</span></button>').join('')}
+      </div>`;
+    return;
+  }
+  if(!t.busy && openDraft){
+    const r=rates.find(x=>x.id===openDraft.rate_id);
+    d.innerHTML=`
+      <button class="close-x" onclick="closeDrawer()">✕</button>
+      <h3>${tableLabel(t)}</h3>
+      <div class="sub">${r.name} · ${fmt(r.per_hour)}/giờ</div>
+      <div class="field"><label>Số người chơi</label><input id="dGuests" type="number" min="1" value="${openDraft.guests}" style="width:100%;"></div>
+      <div class="field"><label>Dự kiến chơi (phút, tuỳ chọn)</label><input id="dDuration" type="number" min="0" placeholder="VD: 90" value="${openDraft.duration_min||''}" style="width:100%;"></div>
+      <div class="field"><label>Ghi chú cho quản lý (tuỳ chọn)</label><input id="dNote" placeholder="VD: khách quen, giảm giá..." value="${openDraft.note}" style="width:100%;"></div>
+      <div class="drawer-actions">
+        <button class="btn ghost" onclick="openDraft=null; renderDrawer();">Quay lại</button>
+        <button class="btn" onclick="confirmOpenTable()">Mở bàn</button>
+      </div>`;
+    return;
+  }
+  if(t.busy && payDraft){
+    const pastRows = (t.segments||[]).map(seg =>
+      '<div class="segment-row"><span>Lần '+seg.segment_no+'</span><span>'+fmt(Number(seg.time_amount)+Number(seg.drinks_amount))+'</span></div>'
+    ).join('');
+    d.innerHTML=`
+      <button class="close-x" onclick="closeDrawer()">✕</button>
+      <h3>Thanh toán ${tableLabel(t)}</h3>
+      <div class="sub">${t.segments&&t.segments.length?'Bàn đã cắt '+t.segments.length+' lần — chi tiết từng lần bên dưới để khách tự chia nhau trả.':'Tổng tiền cần thu'}</div>
+      <div class="segments-list">
+        ${pastRows}
+        <div class="segment-row current"><span>Lần ${t.current_segment} (hiện tại)</span><span id="paySegCurrentValue">${fmt(currentSegmentTime(t)+currentSegmentDrinks(t))}</span></div>
+      </div>
+      <div class="total-box"><span>Tổng cộng</span><span id="payGrandTotal">${fmt(tableTotal(t))}</span></div>
+      <div class="field" style="margin-top:16px;"><label>Ghi chú cho quản lý</label><input id="tableNote" value="${t.note||''}" placeholder="VD: khách quen, giảm giá..." style="width:100%;" onchange="updateNote(this.value)"></div>
+      <div class="field">
+        <label>Phương thức thanh toán</label>
+        <div class="pay-pick">
+          <button class="${payDraft.method==='cash'?'sel':''}" onclick="payDraft.method='cash'; renderDrawer();">💵 Tiền mặt</button>
+          <button class="${payDraft.method==='transfer'?'sel':''}" onclick="payDraft.method='transfer'; renderDrawer();">📱 Chuyển khoản</button>
+        </div>
+      </div>
+      <div class="drawer-actions">
+        <button class="btn ghost" onclick="payDraft=null; renderDrawer();">Quay lại</button>
+        <button class="btn" ${payDraft.method?'':'disabled'} onclick="confirmPayment()">Xác nhận đã thanh toán</button>
+      </div>`;
+    return;
+  }
+
+  let itemsHtml = MENU.length ? MENU.map(m=>{
+    const found=(t.orders||[]).find(o=>o.menu_item_id===m.id);
+    const qty=found?found.qty:0;
+    return '<div class="item-row"><div>'+m.name+'<div style="color:var(--muted); font-size:12px;">'+fmt(m.price)+'</div></div>'+
+      '<div style="display:flex; align-items:center; gap:8px;"><button onclick="changeQty('+m.id+',-1)">−</button>'+
+      '<span style="min-width:16px; text-align:center;">'+qty+'</span><button onclick="changeQty('+m.id+',1)">+</button></div></div>';
+  }).join('') : '<div style="color:var(--muted); font-size:13px; padding:10px 0;">Chưa có món nào trong menu — thêm ở trang Quản lý → Menu.</div>';
+
+  const pastRows = (t.segments||[]).map(seg =>
+    '<div class="segment-row"><span>Lần '+seg.segment_no+' (đã cắt)</span><span>'+fmt(Number(seg.time_amount)+Number(seg.drinks_amount))+'</span></div>'
+  ).join('');
+
+  d.innerHTML=`
+    <button class="close-x" onclick="closeDrawer()">✕</button>
+    <h3>${tableLabel(t)}</h3>
+    <div class="sub">${t.rate_name} · ${fmt(t.rate_per_hour)}/giờ · đã chơi ${elapsedStr(Date.now()-new Date(t.start_time).getTime())} · ${t.guests||0} khách${isSoonEnd(t)?' · ⏰ sắp hết giờ':''}${t.segments&&t.segments.length?' · lần chơi hiện tại: '+t.current_segment:''}</div>
+    ${pastRows?'<div class="segments-list" style="margin-bottom:10px;">'+pastRows+'</div>':''}
+    <div class="field"><label>Ghi chú cho quản lý</label><input id="tableNote" value="${t.note||''}" placeholder="VD: khách quen, giảm giá..." style="width:100%;" onchange="updateNote(this.value)"></div>
+    <p class="section-title" style="font-size:13.5px;">Đồ uống ${t.segments&&t.segments.length?'(lần '+t.current_segment+')':''}</p>${itemsHtml}
+    <div class="total-box"><span>Tổng tạm tính</span><span id="orderingTotalValue">${fmt(tableTotal(t))}</span></div>
+    <div class="field" style="margin-top:16px;">
+      <label>Nhân viên phục vụ</label>
+      <select id="empSelect" style="width:100%;" onchange="empSelectId=parseInt(this.value)">
+        ${employees.map(e=>'<option value="'+e.id+'" '+(e.id===empSelectId?'selected':'')+'>'+e.name+'</option>').join('')}
+      </select>
+    </div>
+    <div class="drawer-actions">
+      <button class="btn ghost" onclick="endTable()">Hủy bàn</button>
+      <button class="btn" onclick="payDraft={method:null}; renderDrawer();">Thanh toán</button>
+    </div>`;
+}
+
+function pickRate(rateId){ openDraft={rate_id:rateId, guests:1, duration_min:'', note:''}; renderDrawer(); }
+
+async function confirmOpenTable(){
+  const guests=parseInt(document.getElementById('dGuests').value)||1;
+  const duration_min=parseInt(document.getElementById('dDuration').value)||0;
+  const note=document.getElementById('dNote').value.trim();
+  try{
+    const t=await api('/tables/'+activeTableId+'/open',{method:'POST',body:JSON.stringify({rate_id:openDraft.rate_id,guests,duration_min,note})});
+    tables=tables.map(x=>x.id===t.id?t:x);
+    openDraft=null;
+    renderDrawer(); renderGrid();
+  }catch(e){ toast(e.message); }
+}
+async function changeQty(menuItemId,delta){
+  try{
+    const t=await api('/tables/'+activeTableId+'/order',{method:'POST',body:JSON.stringify({menu_item_id:menuItemId,delta})});
+    tables=tables.map(x=>x.id===t.id?t:x);
+    renderDrawer();
+  }catch(e){ toast(e.message); }
+}
+async function updateNote(val){
+  try{
+    await api('/tables/'+activeTableId+'/note',{method:'PUT',body:JSON.stringify({note:val})});
+    const t=activeTable(); if(t) t.note=val.trim();
+    renderGrid();
+  }catch(e){ toast(e.message); }
+}
+async function endTable(){
+  try{
+    const t=await api('/tables/'+activeTableId+'/close',{method:'POST'});
+    tables=tables.map(x=>x.id===t.id?t:x);
+    renderDrawer(); renderGrid();
+  }catch(e){ toast(e.message); }
+}
+async function cutTable(id, evt){
+  if(evt) evt.stopPropagation();
+  const t0=tables.find(x=>x.id===id); if(!t0) return;
+  if(!confirm('Cắt bàn '+tableLabel(t0)+': chốt lần chơi hiện tại và bắt đầu tính lại từ đầu, bàn vẫn tiếp tục mở. Tiếp tục?')) return;
+  try{
+    const t=await api('/tables/'+id+'/cut',{method:'POST'});
+    tables=tables.map(x=>x.id===t.id?t:x);
+    if(activeTableId) renderDrawer();
+    renderGrid();
+    toast('Đã cắt bàn — bắt đầu lần chơi mới.');
+  }catch(e){ toast(e.message); }
+}
+async function addExtraTime(id, evt){
+  if(evt) evt.stopPropagation();
+  const t0=tables.find(x=>x.id===id); if(!t0) return;
+  const input = prompt('Cộng thêm bao nhiêu GIỜ cho '+tableLabel(t0)+'? (VD: 1 hoặc 1.5)','1');
+  if(input===null) return;
+  const hours = parseFloat(String(input).replace(',','.'));
+  if(!hours || hours<=0){ toast('Nhập số giờ hợp lệ.'); return; }
+  const money = hours * (t0.rate_per_hour||0);
+  if(!confirm('Cộng thêm '+hours+' giờ × '+fmt(t0.rate_per_hour||0)+'/giờ = '+fmt(money)+' vào '+tableLabel(t0)+'. Xác nhận?')) return;
+  try{
+    const t=await api('/tables/'+id+'/extra-time',{method:'PUT',body:JSON.stringify({minutes:Math.round(hours*60)})});
+    tables=tables.map(x=>x.id===t.id?t:x);
+    if(activeTableId) renderDrawer();
+    renderGrid();
+    toast('Đã cộng thêm '+hours+' giờ (+'+fmt(money)+').');
+  }catch(e){ toast(e.message); }
+}
+async function confirmPayment(){
+  if(!payDraft || !payDraft.method) return;
+  try{
+    await api('/tables/'+activeTableId+'/pay',{method:'POST',body:JSON.stringify({method:payDraft.method,employee_id:empSelectId})});
+    tables = await api('/tables');
+    closeDrawer(); renderGrid();
+    toast('Đã thanh toán thành công.');
+  }catch(e){ toast(e.message); }
+}
+
+function renderAlerts(){
+  const bar=document.getElementById('alertBar'); bar.innerHTML='';
+  const now=Date.now();
+  reservations.forEach(r=>{
+    const diff=new Date(r.reserve_time).getTime()-now;
+    if(diff<=30*60000 && diff>-60*60000){
+      const overdue=diff<0;
+      const div=document.createElement('div');
+      div.className='alert'+(overdue?' bad':'');
+      div.innerHTML=(overdue?'⏰ Quá giờ hẹn: ':'🔔 Sắp đến giờ: ')+'<b>'+r.name+'</b> đặt bàn lúc '+r.reserve_time.slice(11,16)+' · '+r.guests+' khách'+(r.table_id?' · Bàn '+r.table_id:'')+
+        '<button class="btn small ghost" style="margin-left:10px;" onclick="dismissRes('+r.id+')">Đã biết</button>';
+      bar.appendChild(div);
+    }
+  });
+}
+async function dismissRes(id){
+  try{ await api('/reservations/'+id,{method:'DELETE'}); reservations=reservations.filter(r=>r.id!==id); renderGrid(); }
+  catch(e){ toast(e.message); }
+}
+
+function tickClock(){
+  const now=new Date();
+  document.getElementById('clock').innerHTML = now.toLocaleTimeString('vi-VN',{hour12:false})+'<br>'+now.toLocaleDateString('vi-VN');
+}
+init();
+</script>
+</body>
+</html>
