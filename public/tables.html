@@ -44,14 +44,16 @@
   .table-card:hover{transform:translateY(-2px);}
   .table-card.busy{background:linear-gradient(155deg,var(--busy),var(--busy2)); color:#eef4ff;}
   .table-card.soon{background:linear-gradient(155deg,var(--warn),#b97a1f); color:#241a06;}
+  .table-card.paused{background:linear-gradient(155deg,#6b7686,#454e5c); color:#f1f3f6;}
   .table-card.editing{outline:2px dashed var(--copper); outline-offset:2px;}
   .table-card .num{font-size:22px; font-weight:800; line-height:1.15;}
   .table-card .status{font-size:11.5px; font-weight:600; opacity:.85;}
   .table-card .meta-row{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
   .table-card .timer{font-size:13px; font-weight:700; font-variant-numeric:tabular-nums;}
   .table-card .guests{font-size:11px; font-weight:600; opacity:.85;}
-  .card-actions{display:flex; gap:6px; margin-top:6px;}
+  .card-actions{display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;}
   .card-actions button{flex:1; border:none; border-radius:7px; padding:5px 6px; font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer; background:rgba(255,255,255,.22); color:inherit; white-space:nowrap;}
+  .card-actions button.pause-btn.is-paused{background:#3fbf74; color:#07210f;}
   .card-actions button:hover{background:rgba(255,255,255,.34);}
   .table-card.soon .card-actions button{background:rgba(0,0,0,.14);}
   .badge-res{position:absolute; top:8px; right:8px; background:var(--copper); color:#1a1208; font-size:10.5px; font-weight:800; padding:2px 6px; border-radius:6px;}
@@ -111,6 +113,7 @@
     .grid{grid-template-columns:repeat(2,1fr); gap:10px;}
     .table-card,.add-table-card{height:auto; min-height:140px;}
     .card-actions button{padding:8px 6px; font-size:12px;}
+    .card-actions button.pause-btn{flex:1 1 100%;}
     .userbox span{display:none;}
   }
 </style>
@@ -171,6 +174,8 @@ function elapsedStr(ms){
   if(d>0) return d+' ngày';
   return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(Math.floor((ms%60000)/1000)).padStart(2,'0');
 }
+// Bàn đang tạm dừng thì đồng hồ đứng yên tại thời điểm tạm dừng (paused_at)
+function nowFor(t){ return (t.paused && t.paused_at) ? new Date(t.paused_at).getTime() : Date.now(); }
 function activeTable(){ return tables.find(t=>t.id===activeTableId) || null; }
 
 async function init(){
@@ -197,7 +202,7 @@ async function refreshTables(){
 }
 
 function isSoonEnd(t){
-  if(!t.busy || !t.expected_end) return false;
+  if(!t.busy || t.paused || !t.expected_end) return false;
   const rem = new Date(t.expected_end).getTime() - Date.now();
   return rem>0 && rem<=15*60000;
 }
@@ -249,7 +254,7 @@ function renderGrid(){
     if(soon) soonCount++;
     const res=reservations.find(r=>r.table_id===t.id);
     const el=document.createElement('div');
-    el.className='table-card'+(t.busy?(soon?' soon':' busy'):'')+(editLayoutMode?' editing':'');
+    el.className='table-card'+(t.busy?(t.paused?' paused':(soon?' soon':' busy')):'')+(editLayoutMode?' editing':'');
     el.onclick=()=> editLayoutMode ? renameTable(t.id) : openDrawer(t.id);
     el.innerHTML=`
       ${res?'<div class="badge-res">Đặt '+res.reserve_time.slice(11,16)+'</div>':''}
@@ -257,10 +262,11 @@ function renderGrid(){
       ${editLayoutMode && !t.busy?'<button class="badge-del" onclick="deleteTable('+t.id+',event)" title="Xoá bàn">✕</button>':''}
       <div class="num">${tableLabel(t)}</div>
       <div>
-        <div class="status">${editLayoutMode?'Bấm để đổi tên':(t.busy?(soon?'Sắp hết giờ':'Đang phục vụ'):'Bàn trống')}</div>
-        ${t.busy?'<div class="meta-row"><span class="timer" data-id="'+t.id+'">'+elapsedStr(Date.now()-new Date(t.start_time).getTime())+'</span><span class="guests">'+(t.guests||0)+' khách</span></div>':''}
+        <div class="status">${editLayoutMode?'Bấm để đổi tên':(t.busy?(t.paused?'⏸️ Đang tạm dừng':(soon?'Sắp hết giờ':'Đang phục vụ')):'Bàn trống')}</div>
+        ${t.busy?'<div class="meta-row"><span class="timer" data-id="'+t.id+'">'+elapsedStr(nowFor(t)-new Date(t.start_time).getTime())+'</span><span class="guests">'+(t.guests||0)+' khách</span></div>':''}
       </div>
-      ${t.busy && !editLayoutMode?'<div class="card-actions"><button onclick="cutTable('+t.id+',event)">✂️ Cắt bàn</button><button onclick="addExtraTime('+t.id+',event)">⏱️ Thêm giờ</button></div>':''}`;
+      ${t.busy && !editLayoutMode?'<div class="card-actions"><button onclick="cutTable('+t.id+',event)">✂️ Cắt bàn</button><button onclick="addExtraTime('+t.id+',event)">⏱️ Thêm giờ</button>'+
+        (t.paused?'<button class="pause-btn is-paused" onclick="resumeTable('+t.id+',event)">▶️ Tiếp tục</button>':'<button class="pause-btn" onclick="pauseTable('+t.id+',event)">⏸️ Tạm dừng</button>')+'</div>':''}`;
     grid.appendChild(el);
   });
   if(editLayoutMode){
@@ -285,7 +291,7 @@ function segmentsPastTotal(t){
 }
 function currentSegmentTime(t){
   if(!t.busy || !t.rate_per_hour || !t.segment_start_time) return 0;
-  return (Date.now()-new Date(t.segment_start_time).getTime())/3600000 * t.rate_per_hour;
+  return (nowFor(t)-new Date(t.segment_start_time).getTime())/3600000 * t.rate_per_hour;
 }
 function currentSegmentDrinks(t){
   let total=0; (t.orders||[]).forEach(o=>{ total += o.price*o.qty; }); return total;
@@ -296,7 +302,7 @@ function tableTotal(t){
 function tickTimers(){
   document.querySelectorAll('.timer').forEach(el=>{
     const t=tables.find(x=>x.id==el.dataset.id);
-    if(t&&t.busy) el.textContent=elapsedStr(Date.now()-new Date(t.start_time).getTime());
+    if(t&&t.busy) el.textContent=elapsedStr(nowFor(t)-new Date(t.start_time).getTime());
   });
   const t=activeTable();
   if(t && t.busy){
@@ -391,7 +397,7 @@ function renderDrawer(){
   d.innerHTML=`
     <button class="close-x" onclick="closeDrawer()">✕</button>
     <h3>${tableLabel(t)}</h3>
-    <div class="sub">${t.rate_name} · ${fmt(t.rate_per_hour)}/giờ · đã chơi ${elapsedStr(Date.now()-new Date(t.start_time).getTime())} · ${t.guests||0} khách${isSoonEnd(t)?' · ⏰ sắp hết giờ':''}${t.segments&&t.segments.length?' · lần chơi hiện tại: '+t.current_segment:''}</div>
+    <div class="sub">${t.rate_name} · ${fmt(t.rate_per_hour)}/giờ · đã chơi ${elapsedStr(nowFor(t)-new Date(t.start_time).getTime())} · ${t.guests||0} khách${t.paused?' · ⏸️ đang tạm dừng (không tính giờ/tiền)':''}${isSoonEnd(t)?' · ⏰ sắp hết giờ':''}${t.segments&&t.segments.length?' · lần chơi hiện tại: '+t.current_segment:''}</div>
     ${pastRows?'<div class="segments-list" style="margin-bottom:10px;">'+pastRows+'</div>':''}
     <div class="field"><label>Ghi chú cho quản lý</label><input id="tableNote" value="${t.note||''}" placeholder="VD: khách quen, giảm giá..." style="width:100%;" onchange="updateNote(this.value)"></div>
     <p class="section-title" style="font-size:13.5px;">Đồ uống ${t.segments&&t.segments.length?'(lần '+t.current_segment+')':''}</p>${itemsHtml}
@@ -452,6 +458,26 @@ async function cutTable(id, evt){
     if(activeTableId) renderDrawer();
     renderGrid();
     toast('Đã cắt bàn — bắt đầu lần chơi mới.');
+  }catch(e){ toast(e.message); }
+}
+async function pauseTable(id, evt){
+  if(evt) evt.stopPropagation();
+  try{
+    const t=await api('/tables/'+id+'/pause',{method:'POST'});
+    tables=tables.map(x=>x.id===t.id?t:x);
+    if(activeTableId) renderDrawer();
+    renderGrid();
+    toast('Đã tạm dừng — dừng tính giờ và tiền.');
+  }catch(e){ toast(e.message); }
+}
+async function resumeTable(id, evt){
+  if(evt) evt.stopPropagation();
+  try{
+    const t=await api('/tables/'+id+'/resume',{method:'POST'});
+    tables=tables.map(x=>x.id===t.id?t:x);
+    if(activeTableId) renderDrawer();
+    renderGrid();
+    toast('Đã tiếp tục — tính giờ lại (bỏ qua thời gian tạm dừng).');
   }catch(e){ toast(e.message); }
 }
 async function addExtraTime(id, evt){
