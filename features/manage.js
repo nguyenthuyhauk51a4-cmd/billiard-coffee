@@ -52,6 +52,24 @@ router.put('/api/rates/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+router.post('/api/rates', async (req, res) => {
+  const name = String(req.body.name || '').trim();
+  const per_hour = parseInt(req.body.per_hour) || 0;
+  if (!name) return res.status(400).json({ error: 'Nhập tên hạng bàn.' });
+  const [r] = await pool.query('INSERT INTO rates (name, per_hour) VALUES (?, ?)', [name, per_hour]);
+  await logAudit(req, { category: 'rate', action: 'add', entity_id: r.insertId, entity_label: name,
+    description: `Thêm hạng giá bàn "${name}": ${vnd(per_hour)}/giờ` });
+  res.json({ id: r.insertId, name, per_hour });
+});
+router.delete('/api/rates/:id', async (req, res) => {
+  const [[old]] = await pool.query('SELECT * FROM rates WHERE id=?', [req.params.id]);
+  if (!old) return res.status(404).json({ error: 'Không tìm thấy hạng giá.' });
+  await pool.query('DELETE FROM rates WHERE id=?', [req.params.id]); // bàn đang mở vẫn giữ giá đã lưu (snapshot)
+  await logAudit(req, { category: 'rate', action: 'delete', entity_id: old.id, entity_label: old.name,
+    description: `Xoá hạng giá bàn "${old.name}" (${vnd(old.per_hour)}/giờ)` });
+  res.json({ ok: true });
+});
+
 // Menu
 router.get('/api/menu', async (req, res) => {
   const [rows] = await pool.query('SELECT * FROM menu_items ORDER BY id');
