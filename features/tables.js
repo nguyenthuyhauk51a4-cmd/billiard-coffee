@@ -49,6 +49,23 @@ async function fetchTable(id) {
   return { ...t, orders, segments };
 }
 
+// Thời điểm "hiện tại" dùng để tính giờ: nếu bàn đang tạm dừng thì đồng hồ đứng yên tại paused_at
+function effectiveNowMs(t) {
+  return (t.paused && t.paused_at) ? new Date(t.paused_at).getTime() : Date.now();
+}
+// Tổng số giây đã tạm dừng của lượt mở bàn (gồm cả đợt đang tạm dừng dở nếu có)
+function totalPausedSec(t) {
+  const running = (t.paused && t.paused_at) ? Math.max(0, Math.round((Date.now() - new Date(t.paused_at).getTime()) / 1000)) : 0;
+  return (t.paused_total_sec || 0) + running;
+}
+function fmtDuration(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  if (h > 0) return `${h} giờ ${m} phút`;
+  if (m > 0) return `${m} phút ${s} giây`;
+  return `${s} giây`;
+}
+
 async function resetTable(id) {
   await pool.query('DELETE FROM table_orders WHERE table_id=?', [id]);
   await pool.query('DELETE FROM table_segments WHERE table_id=?', [id]);
@@ -233,7 +250,9 @@ router.post('/api/tables/:id/close', async (req, res) => {
       details: { 'Mở lúc': new Date(new Date(t.start_time).getTime() - Number(t.paused_total_sec || 0) * 1000).toLocaleString('vi-VN'),
         'Tạm dừng': pausedTotalSec(t) > 0 ? fmtDur(pausedTotalSec(t)) + (t.paused_at ? ' (đang dừng lúc huỷ)' : '') : 'không', 'Hạng giá': `${t.rate_name} (${vnd(t.rate_per_hour)}/giờ)`,
         'Số khách': t.guests, 'Số lần đã cắt': snap.cuts, 'Món đã gọi': snap.items || '—',
-        'Ghi chú bàn': t.note || '—', 'Tạm tính bị huỷ': vnd(snap.total) } });
+        'Ghi chú bàn': t.note || '—', 'Tạm tính bị huỷ': vnd(snap.total),
+        'Tổng thời gian tạm dừng': totalPausedSec(t) > 0 ? fmtDuration(totalPausedSec(t)) : '—',
+        'Đang tạm dừng lúc huỷ': t.paused ? 'Có' : 'Không' } });
   }
   if (t && t.busy) await stock.releaseTable(pool, req.params.id); // đồ đã gọi chưa thanh toán -> trả lại kho
   await resetTable(req.params.id);
@@ -254,6 +273,7 @@ router.post('/api/tables/:id/cut', async (req, res) => {
      VALUES (?,?,?,COALESCE(?,NOW()),?,?,?)`,
     [id, t.current_segment, t.segment_start_time, t.paused_at, timeAmount, drinksAmount, items]
   );
+  // Nếu đang tạm dừng thì lần chơi mới cũng "đứng" tại paused_at (đồng hồ = 0), tiếp tục sẽ chạy từ đó
   await pool.query(
     'UPDATE billiard_tables SET current_segment = current_segment + 1, segment_start_time = COALESCE(paused_at, NOW()) WHERE id=?',
     [id]

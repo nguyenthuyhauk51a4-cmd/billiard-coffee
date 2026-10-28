@@ -44,14 +44,16 @@
   .table-card:hover{transform:translateY(-2px);}
   .table-card.busy{background:linear-gradient(155deg,var(--busy),var(--busy2)); color:#eef4ff;}
   .table-card.soon{background:linear-gradient(155deg,var(--warn),#b97a1f); color:#241a06;}
+  .table-card.paused{background:linear-gradient(155deg,#6b7686,#454e5c); color:#f1f3f6;}
   .table-card.editing{outline:2px dashed var(--copper); outline-offset:2px;}
   .table-card .num{font-size:22px; font-weight:800; line-height:1.15;}
   .table-card .status{font-size:11.5px; font-weight:600; opacity:.85;}
   .table-card .meta-row{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
   .table-card .timer{font-size:13px; font-weight:700; font-variant-numeric:tabular-nums;}
   .table-card .guests{font-size:11px; font-weight:600; opacity:.85;}
-  .card-actions{display:flex; gap:6px; margin-top:6px;}
+  .card-actions{display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;}
   .card-actions button{flex:1; border:none; border-radius:7px; padding:5px 6px; font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer; background:rgba(255,255,255,.22); color:inherit; white-space:nowrap;}
+  .card-actions button.pause-btn.is-paused{background:#3fbf74; color:#07210f;}
   .card-actions button:hover{background:rgba(255,255,255,.34);}
   .table-card.soon .card-actions button{background:rgba(0,0,0,.14);}
   .table-card.paused{background:linear-gradient(155deg,#6b7280,#4b5563); color:#f3f4f6;}

@@ -115,6 +115,7 @@ theo đúng thứ tự — bỏ qua file nào bạn đã chạy rồi:
 ```bash
 mysql -u root -p billiard_coffee < migration_v3_audit.sql
 mysql -u root -p billiard_coffee < migration_v4_audit_password.sql
+mysql -u root -p billiard_coffee < migration_v5_pause.sql   # nút Tạm dừng / Tiếp tục bàn
 ```
 Sau đó nhớ cấp mật khẩu Lịch sử bằng lệnh `set-audit-password.js` ở trên — nếu
 chưa cấp, ai bấm vào tab Lịch sử cũng sẽ thấy thông báo "Chưa thiết lập mật khẩu".

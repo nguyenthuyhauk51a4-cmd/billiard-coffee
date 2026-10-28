@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS menu_items (
 -- current_segment / segment_start_time phục vụ tính năng "Cắt bàn": mỗi lần cắt,
 -- lần chơi hiện tại được chốt lại vào bảng table_segments, rồi bắt đầu đếm lại từ đầu
 -- cho lần kế tiếp trong khi bàn vẫn tiếp tục mở liên tục.
+-- paused / paused_at / paused_total_sec phục vụ tính năng "Tạm dừng bàn": khi tạm dừng, đồng hồ và
+-- tiền giờ dừng tại paused_at; khi "Tiếp tục", các mốc giờ được dời lùi đúng bằng thời gian đã dừng
+-- (nên khoảng tạm dừng không bị tính tiền).
 CREATE TABLE IF NOT EXISTS billiard_tables (
   id INT AUTO_INCREMENT PRIMARY KEY,
   label VARCHAR(50) NULL,
