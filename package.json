@@ -4,9 +4,11 @@
   "description": "Billiard Coffee - quan ly quan, du lieu luu MySQL, dang nhap khong co dang ky",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node scripts/migrate.js && node server.js",
     "create-user": "node scripts/create-user.js",
-    "set-audit-password": "node scripts/set-audit-password.js"
+    "set-audit-password": "node scripts/set-audit-password.js",
+    "set-stock-password": "node scripts/set-stock-password.js",
+    "fix-stock": "node scripts/fix-stock.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

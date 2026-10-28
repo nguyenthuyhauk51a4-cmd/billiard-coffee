@@ -2,7 +2,7 @@
 // Chỉ có hàm THÊM — cố ý không có hàm sửa/xoá. Muốn dọn lịch sử phải làm trực tiếp trong MySQL.
 const pool = require('../db');
 
-// category: table | transaction | employee | menu | rate | reservation | auth
+// category: table | transaction | employee | menu | rate | reservation | auth | inventory
 async function logAudit(req, { category, action, entity_id = null, entity_label = null, description, details = null, actor = null }) {
   try {
     const u = actor || (req && req.session && req.session.user) || null;

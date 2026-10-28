@@ -11,4 +11,23 @@ function requireAuthPage(req, res, next) {
   next();
 }
 
-module.exports = { requireAuthApi, requireAuthPage };
+// Phần có mật khẩu riêng (Lịch sử + Quản lý kho): phải mở khoá trong phiên đăng nhập này.
+// 403 (không phải 401) để front-end không tự đá về trang đăng nhập.
+function requireAuditUnlocked(req, res, next) {
+  if (!req.session.auditUnlocked) return res.status(403).json({ error: 'locked', locked: true });
+  next();
+}
+
+// Trang Nhập kho có mật khẩu riêng (do chủ quán cấp bằng scripts/set-stock-password.js)
+function requireStockUnlocked(req, res, next) {
+  if (!req.session.stockUnlocked) return res.status(403).json({ error: 'locked', locked: true });
+  next();
+}
+
+// Cho phép nếu đã mở khoá trang Nhập kho HOẶC đã mở khoá Lịch sử (dùng cho thao tác sửa phiếu nhập)
+function requireStockOrAuditUnlocked(req, res, next) {
+  if (!req.session.stockUnlocked && !req.session.auditUnlocked) return res.status(403).json({ error: 'locked', locked: true });
+  next();
+}
+
+module.exports = { requireAuthApi, requireAuthPage, requireAuditUnlocked, requireStockUnlocked, requireStockOrAuditUnlocked };

@@ -189,3 +189,12 @@ cấp ở bước 5 → tự chuyển vào `/tables.html`.
 Vì dữ liệu nằm trên MySQL của máy chạy `npm start`, các máy/điện thoại khác
 trong cùng mạng Wi-Fi của quán có thể truy cập bằng địa chỉ IP của máy đó,
 ví dụ `http://192.168.1.10:3000` (xem IP bằng `ipconfig`/`ifconfig`).
+
+---
+## Cập nhật: Tạm dừng bàn + Kho
+
+- **Tạm dừng bàn** (trang Sơ đồ bàn): nút ⏸️ Tạm dừng / ▶️ Tiếp tục cạnh Cắt bàn & Thêm giờ. Dừng thì đồng hồ + tiền giờ đứng yên, tiếp tục thì bỏ qua khoảng đã dừng. Mỗi lần dừng/tiếp tục đều ghi vào Lịch sử.
+- **Kho**: trang **Nhập kho** (`/nhapkho.html`) và tab **Quản lý → 📦 Quản lý kho** (Nhập kho / Xuất kho / Tồn kho).
+  - Món trên menu được liên kết với hàng trong kho sẽ **bị trừ tồn ngay khi gọi**, **hết hàng thì không gọi được**, bớt món/huỷ bàn thì hoàn lại kho, **thanh toán thì ghi vào Xuất kho**.
+  - Món không liên kết kho thì gọi tự do như cũ.
+- Database cũ: chạy `CHAY_TREN_TIDB.sql` một lần (file `db_schema.sql` đã gồm sẵn cho cài mới).

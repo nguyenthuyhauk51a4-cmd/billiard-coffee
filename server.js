@@ -43,6 +43,7 @@ app.use(session({
 app.use(require('./features/auth'));         // trang đăng nhập
 app.use(require('./features/tables'));        // trang Sơ đồ bàn
 app.use(require('./features/reservations'));  // trang Đặt bàn
+app.use(require('./features/inventory'));     // trang Nhập kho + API kho
 app.use(require('./features/manage'));        // trang Quản lý
 app.use(require('./features/audit'));         // API xem lịch sử (chỉ đọc, admin)
 

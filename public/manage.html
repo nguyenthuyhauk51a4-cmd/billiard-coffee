@@ -60,6 +60,12 @@
   .b-employee{background:#3f3320; color:#e6c06a;} .b-menu{background:#3d2a3f; color:#dba3e0;}
   .b-rate{background:#3a2c20; color:#e69a5c;} .b-reservation{background:#20373d; color:#7fd3e0;}
   .b-auth{background:#2b3542; color:#b5bfcc;}
+  .b-inventory{background:#2f3a2a; color:#b4e07f;}
+  .b-stk-ok{background:#1f3d2c; color:#6fdc9b;} .b-stk-low{background:#3d3320; color:#e6c06a;} .b-stk-out{background:#4a2420; color:#ff8f80;}
+  .stat-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px;}
+  .stat-cards .sc{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px;}
+  .stat-cards .sc .n{font-size:20px; font-weight:800; color:var(--copper2);} .stat-cards .sc .l{font-size:12px; color:var(--muted); font-weight:600; margin-top:2px;}
+  table.data td select{max-width:190px;}
   .act-danger{color:var(--bad); font-weight:700;}
   tr.log-row{cursor:pointer;} tr.log-row:hover td{background:var(--panel2);}
   tr.log-detail td{background:#151b23; font-size:12.5px; color:var(--muted); padding:10px 16px 14px;}
@@ -98,6 +104,7 @@
   <nav>
     <a href="/tables.html">Sơ đồ bàn</a>
     <a href="/resv.html">Đặt bàn</a>
+    <a href="/nhapkho.html">Nhập kho</a>
     <a class="active" href="/manage.html">Quản lý</a>
   </nav>
   <div class="clock" id="clock"></div>
@@ -187,6 +194,11 @@
       <div id="auditLockMsg" style="color:var(--bad); font-size:12.5px; margin-top:10px; display:none;"></div>
     </div>
     <div id="auditUnlocked" style="display:none;">
+    <div class="chips" id="auditViewChips">
+      <button class="active" data-av="log">📜 Nhật ký hoạt động</button>
+      <button data-av="stock">📦 Quản lý kho</button>
+    </div>
+    <div id="auditView-log">
     <p style="color:var(--muted); font-size:13px; margin-top:0;">Mọi thao tác trong app đều được ghi lại tại đây. Lịch sử <b>không thể sửa hay xoá</b> từ giao diện — chỉ xoá/sửa được trực tiếp trong database. Bấm vào 1 dòng để xem chi tiết.</p>
     <div class="chips" id="auditChips">
       <button class="active" data-cat="">Tất cả</button>
@@ -194,6 +206,7 @@
       <button data-cat="transaction">💰 Giao dịch</button>
       <button data-cat="employee">👤 Nhân viên</button>
       <button data-cat="menu">🍹 Menu</button>
+      <button data-cat="inventory">📦 Kho</button>
       <button data-cat="rate">🏷️ Giá bàn</button>
       <button data-cat="reservation">📅 Đặt bàn</button>
       <button data-cat="auth">🔐 Đăng nhập</button>
@@ -214,6 +227,35 @@
       </table>
     </div>
     <div class="pager"><button class="btn small ghost" id="auditPrev" onclick="loadAudit(auditPage-1)">← Trước</button><span id="auditPageInfo"></span><button class="btn small ghost" id="auditNext" onclick="loadAudit(auditPage+1)">Sau →</button></div>
+    </div>
+    <div id="auditView-stock" style="display:none;">
+    <div class="chips" id="stockChips">
+      <button class="active" data-st="in">📥 Nhập kho</button>
+      <button data-st="out">📤 Xuất kho</button>
+      <button data-st="stock">📋 Tồn kho</button>
+      <a href="/nhapkho.html" style="margin-left:auto; align-self:center; font-size:13px; font-weight:700; color:var(--copper2); text-decoration:none; white-space:nowrap;">+ Đi tới trang Nhập kho →</a>
+    </div>
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div id="stDateWrap" style="display:flex; gap:10px; flex-wrap:wrap;">
+          <div><label>Từ ngày</label><input type="date" id="stFrom" onchange="loadStock()"></div>
+          <div><label>Đến ngày</label><input type="date" id="stTo" onchange="loadStock()"></div>
+        </div>
+        <div id="stReasonWrap" style="display:none;"><label>Loại xuất</label>
+          <select id="stReason" onchange="loadStock()"><option value="">Tất cả</option><option value="sale">Khách mua</option><option value="manual">Xuất tay</option></select>
+        </div>
+        <div id="stStatusWrap" style="display:none;"><label>Tình trạng</label>
+          <select id="stStatus" onchange="loadStock()"><option value="">Tất cả</option><option value="out">Hết hàng</option><option value="low">Sắp hết (≤5)</option><option value="ok">Còn hàng</option></select>
+        </div>
+        <div style="flex:1; min-width:150px;"><label>Tìm theo tên đồ</label><input id="stQ" placeholder="VD: coca" style="width:100%;" oninput="clearTimeout(window._stT); window._stT=setTimeout(loadStock,300)"></div>
+        <button class="btn ghost" onclick="stResetFilters()">Đặt lại</button>
+      </div>
+    </div>
+    <div id="stSummary"></div>
+    <div class="card" style="padding:0; overflow:auto;">
+      <table class="data"><thead id="stHead"></thead><tbody id="stBody"></tbody></table>
+    </div>
+    </div>
     </div>
   </div>
 </main>
@@ -355,12 +397,73 @@ function renderMenu(){
         '<button class="btn small" onclick="saveMenuItem('+m.id+')">Lưu</button>'+
         '<button class="btn small ghost" onclick="cancelEditMenuItem('+m.id+')">Huỷ</button></div>';
     }
-    return '<div class="rate-row"><div style="flex:1;">'+m.name+'</div>'+
+    const stkBadge = (m.stock_qty==null) ? '' : (' <span class="badge '+(m.stock_qty<=0?'b-stk-out':(m.stock_qty<=LOW_STOCK?'b-stk-low':'b-stk-ok'))+'">'+(m.stock_qty<=0?'Hết hàng':'Tồn '+m.stock_qty)+'</span>');
+    return '<div class="rate-row"><div style="flex:1;">'+m.name+stkBadge+'</div>'+
       '<div style="min-width:90px; color:var(--copper2); font-weight:700;">'+fmt(m.price)+'</div>'+
       '<button class="btn small ghost" onclick="editMenuItem('+m.id+')">Sửa</button>'+
       '<button class="btn small danger" onclick="removeMenuItem('+m.id+')">Xoá</button></div>';
   }).join('') : '<div class="empty-state"><div class="ic">🍹</div><div>Chưa có món nào trong menu</div></div>';
 }
+
+/* ---- Quản lý kho: Nhập kho / Xuất kho / Tồn kho ---- */
+const LOW_STOCK=5;
+let stTab='in', stItems=[], stInRows=[];
+function stStatus(q){ return q<=0 ? ['Hết hàng','b-stk-out','out'] : (q<=LOW_STOCK ? ['Sắp hết','b-stk-low','low'] : ['Còn hàng','b-stk-ok','ok']); }
+function stDefaultDates(){
+  const p=n=>String(n).padStart(2,'0'), f=x=>x.getFullYear()+'-'+p(x.getMonth()+1)+'-'+p(x.getDate());
+  const d=new Date(); document.getElementById('stTo').value=f(d); document.getElementById('stFrom').value=f(new Date(d.getTime()-29*86400000));
+}
+function stResetFilters(){ stDefaultDates(); ['stQ','stReason','stStatus'].forEach(id=>document.getElementById(id).value=''); loadStock(); }
+function setStockTab(t){
+  stTab=t;
+  document.querySelectorAll('#stockChips button').forEach(x=>x.classList.toggle('active',x.dataset.st===t));
+  document.getElementById('stDateWrap').style.display = t==='stock' ? 'none' : 'flex';
+  document.getElementById('stReasonWrap').style.display = t==='out' ? 'block' : 'none';
+  document.getElementById('stStatusWrap').style.display = t==='stock' ? 'block' : 'none';
+  loadStock();
+}
+function stCards(arr){ return '<div class="stat-cards">'+arr.map(a=>'<div class="sc"><div class="n">'+a[0]+'</div><div class="l">'+a[1]+'</div></div>').join('')+'</div>'; }
+// Đối chiếu sổ: tồn đúng phải = Tổng nhập − Đã xuất − Đang ở bàn. Lệch nghĩa là có thao tác làm đổi tồn mà không ghi sổ.
+function stCheck(i){ const d=i.qty-(i.total_in-i.total_out-i.on_tables); return d===0 ? '<span style="color:var(--good); font-size:12.5px;">✓ khớp</span>' : '<span class="badge b-stk-out" title="Tồn thực tế khác số tính từ sổ nhập/xuất">⚠ lệch '+(d>0?'+':'')+d+'</span>'; }
+const stEmpty=(cols,msg)=>'<tr><td colspan="'+cols+'" style="color:var(--muted); text-align:center; padding:28px;">'+msg+'</td></tr>';
+const stTime=v=>'<td style="white-space:nowrap;">'+new Date(v).toLocaleString('vi-VN')+'</td>';
+async function loadStock(){
+  const head=document.getElementById('stHead'), body=document.getElementById('stBody'), sum=document.getElementById('stSummary');
+  const p=new URLSearchParams();
+  const from=document.getElementById('stFrom').value, to=document.getElementById('stTo').value, q=document.getElementById('stQ').value.trim();
+  try{
+    if(stTab==='in'){
+      if(from) p.set('from',from); if(to) p.set('to',to); if(q) p.set('q',q);
+      const rows=await api('/stock/in?'+p.toString()); stInRows=rows;
+      const qty=rows.reduce((a,r)=>a+r.qty,0);
+      sum.innerHTML=stCards([[rows.length,'Lượt nhập'],[qty,'Tổng số lượng nhập']])+(rows.length>=500?'<p style="color:var(--muted); font-size:12.5px; margin:-4px 0 10px;">Chỉ hiện 500 dòng mới nhất — thu hẹp khoảng ngày để xem đủ.</p>':'');
+      head.innerHTML='<tr><th>Thời gian nhập</th><th>Tên đồ</th><th>SL nhập</th><th>Người nhập</th><th>Ghi chú</th></tr>';
+      body.innerHTML=rows.length?rows.map(r=>'<tr>'+stTime(r.created_at)+'<td><b>'+esc(r.item_name)+'</b></td><td><b>'+r.qty+'</b></td><td>'+esc(r.actor_name||'—')+'</td><td style="color:var(--muted);">'+esc(r.note||'')+'</td></tr>').join(''):stEmpty(5,'Chưa có lần nhập nào khớp bộ lọc');
+    } else if(stTab==='out'){
+      if(from) p.set('from',from); if(to) p.set('to',to); if(q) p.set('q',q);
+      const rs=document.getElementById('stReason').value; if(rs) p.set('reason',rs);
+      const rows=await api('/stock/out?'+p.toString());
+      const qty=rows.reduce((a,r)=>a+r.qty,0);
+      const sale=rows.filter(r=>r.reason==='sale'), man=rows.filter(r=>r.reason!=='sale');
+      sum.innerHTML=stCards([[qty,'Tổng số lượng xuất'],[sale.reduce((a,r)=>a+r.qty,0),'Khách mua'],[fmt(sale.reduce((a,r)=>a+r.qty*r.unit_price,0)),'Giá trị bán ra'],[man.reduce((a,r)=>a+r.qty,0),'Xuất tay (hỏng/nội bộ)']])+(rows.length>=500?'<p style="color:var(--muted); font-size:12.5px; margin:-4px 0 10px;">Chỉ hiện 500 dòng mới nhất — thu hẹp khoảng ngày để xem đủ.</p>':'');
+      head.innerHTML='<tr><th>Thời gian xuất</th><th>Tên đồ</th><th>SL xuất</th><th>Đơn giá</th><th>Thành tiền</th><th>Loại</th><th>Bàn</th><th>Người thao tác</th><th>Ghi chú</th></tr>';
+      body.innerHTML=rows.length?rows.map(r=>'<tr>'+stTime(r.created_at)+'<td><b>'+esc(r.item_name)+'</b></td><td><b>'+r.qty+'</b></td><td>'+fmt(r.unit_price)+'</td><td>'+fmt(r.qty*r.unit_price)+'</td><td>'+(r.reason==='sale'?'<span class="badge b-stk-ok">Khách mua</span>':'<span class="badge b-stk-low">Xuất tay</span>')+'</td><td>'+esc(r.table_name||'—')+(r.transaction_id?' <span style="color:var(--muted);">#'+r.transaction_id+'</span>':'')+'</td><td>'+esc(r.actor_name||'—')+'</td><td style="color:var(--muted);">'+esc(r.note||'')+'</td></tr>').join(''):stEmpty(9,'Chưa có lần xuất nào khớp bộ lọc');
+    } else {
+      stItems=await api('/stock/items');
+      const stf=document.getElementById('stStatus').value, ql=q.toLowerCase();
+      const all=stItems, rows=all.filter(i=>(!stf||stStatus(i.qty)[2]===stf)&&(!ql||i.name.toLowerCase().includes(ql)));
+      sum.innerHTML=stCards([[all.length,'Mặt hàng'],[all.filter(i=>i.qty<=0).length,'Hết hàng'],[all.filter(i=>i.qty>0&&i.qty<=LOW_STOCK).length,'Sắp hết (≤'+LOW_STOCK+')']]);
+      head.innerHTML='<tr><th>Tên đồ</th><th>Tồn kho</th><th>Tình trạng</th><th>Tổng nhập</th><th>Đã xuất</th><th>Đang ở bàn</th><th>Đối chiếu</th></tr>';
+      body.innerHTML=rows.length?rows.map(i=>{
+        const st=stStatus(i.qty);
+        return '<tr><td><b>'+esc(i.name)+'</b></td><td style="font-size:16px; font-weight:800;">'+i.qty+'</td><td><span class="badge '+st[1]+'">'+st[0]+'</span></td><td>'+i.total_in+'</td><td>'+i.total_out+'</td><td>'+i.on_tables+'</td><td>'+stCheck(i)+'</td>'+
+          '</tr>';
+      }).join(''):stEmpty(7,all.length?'Không có mặt hàng nào khớp bộ lọc':'Kho đang trống — vào trang <b>Nhập kho</b> để nhập hàng.');
+    }
+  }catch(e){ if(e.message==='locked') auditRelock(); else toast(e.message); }
+}
+document.querySelectorAll('#stockChips button').forEach(b=>{ b.onclick=()=>setStockTab(b.dataset.st); });
+stDefaultDates();
 
 /* ---- Giao dịch ---- */
 function payLabel(m){ return m==='cash' ? 'Tiền mặt' : m==='transfer' ? 'Chuyển khoản' : '—'; }
@@ -411,7 +514,7 @@ function auditLockNow(){
   api('/audit/lock',{method:'POST'}).catch(()=>{}); // báo cho server khoá lại luôn, không cần đợi kết quả
   document.getElementById('auditLockScreen').style.display='block';
   document.getElementById('auditUnlocked').style.display='none';
-  document.getElementById('auditBody').innerHTML=''; // không để lộ dữ liệu cũ còn nằm trong khung đã ẩn
+  document.getElementById('auditBody').innerHTML=''; document.getElementById('stBody').innerHTML=''; document.getElementById('stSummary').innerHTML=''; // không để lộ dữ liệu cũ còn nằm trong khung đã ẩn
   const msg=document.getElementById('auditLockMsg');
   msg.textContent='Đã tự khoá do không thao tác quá 10 phút — nhập lại mật khẩu để tiếp tục.';
   msg.style.display='block';
@@ -435,7 +538,7 @@ async function openAuditTab(){
       document.querySelector('#auditLockScreen .btn').style.display='none';
       return;
     }
-    if(st.unlocked){ auditIsUnlocked=true; showAuditUnlocked(); loadAuditActors(); loadAudit(1); auditResetIdleTimer(); }
+    if(st.unlocked){ auditIsUnlocked=true; showAuditUnlocked(); setAuditView('log'); loadAuditActors(); auditResetIdleTimer(); }
     else{ auditIsUnlocked=false; clearTimeout(auditIdleTimer); document.getElementById('auditLockScreen').style.display='block'; document.getElementById('auditUnlocked').style.display='none'; }
   }catch(e){ toast(e.message); }
 }
@@ -450,10 +553,10 @@ async function unlockAudit(){
   try{
     await api('/audit/unlock',{method:'POST',body:JSON.stringify({password:pw})});
     auditIsUnlocked=true; msg.style.display='none';
-    showAuditUnlocked(); loadAuditActors(); loadAudit(1); auditResetIdleTimer();
+    showAuditUnlocked(); setAuditView('log'); loadAuditActors(); auditResetIdleTimer();
   }catch(e){ msg.textContent=e.message; msg.style.display='block'; }
 }
-const CAT_LABEL={table:'Quản lý bàn',transaction:'Giao dịch',employee:'Nhân viên',menu:'Menu',rate:'Giá bàn',reservation:'Đặt bàn',auth:'Đăng nhập'};
+const CAT_LABEL={table:'Quản lý bàn',transaction:'Giao dịch',employee:'Nhân viên',menu:'Menu',rate:'Giá bàn',reservation:'Đặt bàn',auth:'Đăng nhập',inventory:'Kho'};
 const DANGER_ACTIONS=['cancel','delete','delete_table','login_failed','remove'];
 let auditCat='', auditPage=1;
 function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -469,6 +572,20 @@ function resetAuditFilters(){
   auditCat=''; document.querySelectorAll('#auditChips button').forEach(x=>x.classList.toggle('active',x.dataset.cat===''));
   loadAudit(1);
 }
+function auditRelock(){
+  auditIsUnlocked=false; clearTimeout(auditIdleTimer);
+  document.getElementById('auditLockScreen').style.display='block'; document.getElementById('auditUnlocked').style.display='none';
+  document.getElementById('auditBody').innerHTML=''; document.getElementById('stBody').innerHTML=''; document.getElementById('stSummary').innerHTML='';
+  const msg=document.getElementById('auditLockMsg');
+  msg.textContent='Phiên xem Lịch sử đã hết hạn — nhập lại mật khẩu để tiếp tục.'; msg.style.display='block';
+}
+function setAuditView(v){
+  document.querySelectorAll('#auditViewChips button').forEach(x=>x.classList.toggle('active',x.dataset.av===v));
+  document.getElementById('auditView-log').style.display = v==='log' ? 'block' : 'none';
+  document.getElementById('auditView-stock').style.display = v==='stock' ? 'block' : 'none';
+  if(v==='stock') setStockTab(stTab); else loadAudit(auditPage||1);
+}
+document.querySelectorAll('#auditViewChips button').forEach(b=>{ b.onclick=()=>setAuditView(b.dataset.av); });
 async function loadAudit(page){
   if(page<1) return;
   auditPage=page;
@@ -495,14 +612,7 @@ async function loadAudit(page){
     document.getElementById('auditPrev').disabled = d.page<=1;
     document.getElementById('auditNext').disabled = d.page>=d.pages;
   }catch(e){
-    if(e.message==='locked'){
-      auditIsUnlocked=false; clearTimeout(auditIdleTimer);
-      document.getElementById('auditLockScreen').style.display='block'; document.getElementById('auditUnlocked').style.display='none';
-      document.getElementById('auditBody').innerHTML='';
-      const msg=document.getElementById('auditLockMsg');
-      msg.textContent='Phiên xem Lịch sử đã hết hạn — nhập lại mật khẩu để tiếp tục.'; msg.style.display='block';
-    }
-    else toast(e.message);
+    if(e.message==='locked') auditRelock(); else toast(e.message);
   }
 }
 document.querySelectorAll('#auditChips button').forEach(b=>{

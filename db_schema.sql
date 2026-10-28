@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS billiard_tables (
   expected_end DATETIME NULL,
   current_segment INT NOT NULL DEFAULT 1,
   segment_start_time DATETIME NULL,
+  paused_at DATETIME NULL,              -- NULL = đang chạy; có giá trị = bàn đang TẠM DỪNG từ lúc đó
+  paused_total_sec INT NOT NULL DEFAULT 0, -- tổng số giây đã tạm dừng của lần phục vụ này
   FOREIGN KEY (rate_id) REFERENCES rates(id) ON DELETE SET NULL
 );
 
@@ -149,10 +151,59 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Bảng lịch sử: web CHỈ ĐƯỢC THÊM dòng mới và ĐỌC. Không có API nào sửa/xoá bảng này,
 -- muốn sửa/xoá phải làm trực tiếp trong MySQL.
 -- Cố ý KHÔNG có khoá ngoại: xoá bàn / nhân viên / món thì lịch sử cũ vẫn còn nguyên,
+-- ---------- KHO: danh mục hàng, lịch sử nhập, lịch sử xuất ----------
+-- Danh mục hàng trong kho. menu_item_id = món trên menu được liên kết (NULL = chưa lên menu)
+CREATE TABLE IF NOT EXISTS inventory_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  category VARCHAR(80) NOT NULL DEFAULT '',
+  cost_price DECIMAL(12,0) NOT NULL DEFAULT 0,
+  qty INT NOT NULL DEFAULT 0,
+  menu_item_id INT NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_inv_menu (menu_item_id),
+  FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE SET NULL
+);
+
+-- Lịch sử NHẬP kho
+CREATE TABLE IF NOT EXISTS stock_in (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  item_id INT NULL,
+  item_name VARCHAR(100) NOT NULL,
+  category VARCHAR(80) NOT NULL DEFAULT '',
+  qty INT NOT NULL,
+  unit_cost DECIMAL(12,0) NOT NULL DEFAULT 0,
+  total_cost DECIMAL(14,0) NOT NULL DEFAULT 0,
+  note VARCHAR(255) NOT NULL DEFAULT '',
+  actor_name VARCHAR(100) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_in_time (created_at),
+  FOREIGN KEY (item_id) REFERENCES inventory_items(id) ON DELETE SET NULL
+);
+
+-- Lịch sử XUẤT kho: reason = 'sale' (khách mua, tự ghi khi thanh toán) hoặc 'manual' (xuất tay: hỏng, dùng nội bộ...)
+CREATE TABLE IF NOT EXISTS stock_out (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  item_id INT NULL,
+  item_name VARCHAR(100) NOT NULL,
+  qty INT NOT NULL,
+  unit_price DECIMAL(12,0) NOT NULL DEFAULT 0,
+  reason VARCHAR(20) NOT NULL DEFAULT 'sale',
+  transaction_id INT NULL,
+  table_name VARCHAR(60) NULL,
+  note VARCHAR(255) NOT NULL DEFAULT '',
+  actor_name VARCHAR(100) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_out_time (created_at),
+  FOREIGN KEY (item_id) REFERENCES inventory_items(id) ON DELETE SET NULL
+);
+
+
 -- vì tên đã được chụp lại (entity_label, actor_name) tại thời điểm xảy ra.
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  category ENUM('table','transaction','employee','menu','rate','reservation','auth') NOT NULL,
+  category ENUM('table','transaction','employee','menu','rate','reservation','auth','inventory') NOT NULL,
   action VARCHAR(40) NOT NULL,
   entity_id INT NULL,
   entity_label VARCHAR(150) NULL,

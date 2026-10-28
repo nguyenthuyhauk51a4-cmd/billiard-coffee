@@ -4,6 +4,7 @@ const pool = require('../db');
 const { requireAuthApi, requireAuthPage } = require('../middleware/auth');
 const { logAudit, vnd, tableName } = require('../utils/audit');
 
+const stock = require('../utils/stock');
 const router = express.Router();
 
 /* ================= FRONT-END: giao diện nằm ở public/tables.html ================= */
@@ -14,6 +15,23 @@ router.get('/tables.html', requireAuthPage, (req, res) =>
 router.use('/api/tables', requireAuthApi);
 
 /* ---- Helper dùng chung ---- */
+
+// 3725 giây -> "1 giờ 2 phút 5 giây"
+function fmtDur(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const parts = [];
+  if (h) parts.push(h + ' giờ');
+  if (m) parts.push(m + ' phút');
+  if (s || !parts.length) parts.push(s + ' giây');
+  return parts.join(' ');
+}
+// Tổng thời gian đã tạm dừng của bàn (các lần dừng đã xong + lần đang dừng, nếu có)
+function pausedTotalSec(t) {
+  const done = Number(t.paused_total_sec || 0);
+  const ongoing = t.paused_at ? Math.max(0, (Date.now() - new Date(t.paused_at).getTime()) / 1000) : 0;
+  return Math.round(done + ongoing);
+}
 
 // Lấy đầy đủ thông tin 1 bàn: món đang gọi của LẦN CHƠI HIỆN TẠI + các lần đã cắt trước đó
 async function fetchTable(id) {
@@ -36,7 +54,8 @@ async function resetTable(id) {
   await pool.query('DELETE FROM table_segments WHERE table_id=?', [id]);
   await pool.query(
     `UPDATE billiard_tables SET busy=0, start_time=NULL, rate_id=NULL, rate_name=NULL,
-     rate_per_hour=NULL, guests=0, note='', expected_end=NULL, current_segment=1, segment_start_time=NULL
+     rate_per_hour=NULL, guests=0, note='', expected_end=NULL, current_segment=1, segment_start_time=NULL,
+     paused_at=NULL, paused_total_sec=0
      WHERE id=?`, [id]
   );
 }
@@ -48,7 +67,9 @@ async function computeCurrentSegmentAmounts(t) {
      WHERE o.table_id=? AND o.segment=?`, [t.id, t.current_segment]
   );
   const drinksAmount = orders.reduce((s, o) => s + o.price * o.qty, 0);
-  const hours = (Date.now() - new Date(t.segment_start_time).getTime()) / 3600000;
+  // Đang tạm dừng thì đồng hồ đứng yên tại thời điểm bấm Tạm dừng
+  const nowMs = t.paused_at ? new Date(t.paused_at).getTime() : Date.now();
+  const hours = (nowMs - new Date(t.segment_start_time).getTime()) / 3600000;
   const timeAmount = t.rate_per_hour ? Math.round(hours * t.rate_per_hour) : 0;
   return { timeAmount, drinksAmount };
 }
@@ -123,7 +144,8 @@ router.post('/api/tables/:id/open', async (req, res) => {
   await pool.query(
     `UPDATE billiard_tables
      SET busy=1, start_time=NOW(), segment_start_time=NOW(), current_segment=1,
-         rate_id=?, rate_name=?, rate_per_hour=?, guests=?, note=?, expected_end=?
+         rate_id=?, rate_name=?, rate_per_hour=?, guests=?, note=?, expected_end=?,
+         paused_at=NULL, paused_total_sec=0
      WHERE id=?`,
     [rate.id, rate.name, rate.per_hour, guests || 1, (note || '').trim(), expectedEnd, id]
   );
@@ -145,30 +167,61 @@ router.put('/api/tables/:id/note', async (req, res) => {
 });
 router.post('/api/tables/:id/order', async (req, res) => {
   const id = req.params.id;
-  const { menu_item_id, delta } = req.body;
-  const [[tbl]] = await pool.query('SELECT current_segment FROM billiard_tables WHERE id=?', [id]);
+  const { menu_item_id } = req.body;
+  const delta = parseInt(req.body.delta) || 0;
+  const [[tbl]] = await pool.query('SELECT current_segment, busy FROM billiard_tables WHERE id=?', [id]);
   if (!tbl) return res.status(404).json({ error: 'Không tìm thấy bàn.' });
+  if (!tbl.busy) return res.status(400).json({ error: 'Bàn chưa mở — hãy mở bàn trước khi gọi món.' });
   const segment = tbl.current_segment;
-  const [[existing]] = await pool.query(
-    'SELECT * FROM table_orders WHERE table_id=? AND menu_item_id=? AND segment=?', [id, menu_item_id, segment]
-  );
-  const before = existing ? existing.qty : 0;
-  const next = Math.max(0, before + delta);
-  if (next === 0) {
-    if (existing) await pool.query('DELETE FROM table_orders WHERE id=?', [existing.id]);
-  } else if (existing) {
-    await pool.query('UPDATE table_orders SET qty=? WHERE id=?', [next, existing.id]);
-  } else {
-    await pool.query('INSERT INTO table_orders (table_id, menu_item_id, segment, qty) VALUES (?,?,?,?)', [id, menu_item_id, segment, next]);
-  }
+
+  // Ghi order + trừ/hoàn kho trong CÙNG 1 giao dịch: lỗi giữa chừng thì cả hai cùng huỷ, tồn kho không bị lệch
+  const conn = await pool.getConnection();
+  let before = 0, next = 0, stockLeft = null;
+  try {
+    await conn.beginTransaction();
+    const [[existing]] = await conn.query(
+      'SELECT * FROM table_orders WHERE table_id=? AND menu_item_id=? AND segment=?', [id, menu_item_id, segment]
+    );
+    before = existing ? existing.qty : 0;
+    next = Math.max(0, before + delta);
+    const change = next - before;
+    if (change > 0) {
+      const r = await stock.reserve(conn, menu_item_id, change);
+      if (!r.ok) {
+        await conn.rollback();
+        return res.status(400).json({ error: r.left > 0
+          ? `Hết hàng: "${r.name}" chỉ còn ${r.left} trong kho.` : `Hết hàng: "${r.name}" đã hết trong kho.` });
+      }
+      stockLeft = r.left;
+    } else if (change < 0) {
+      stockLeft = (await stock.release(conn, menu_item_id, -change)).left;
+    } else {
+      const [[inv]] = await conn.query('SELECT qty FROM inventory_items WHERE menu_item_id=? AND active=1', [menu_item_id]);
+      stockLeft = inv ? inv.qty : null;
+    }
+    if (next === 0) {
+      if (existing) await conn.query('DELETE FROM table_orders WHERE id=?', [existing.id]);
+    } else if (existing) {
+      await conn.query('UPDATE table_orders SET qty=? WHERE id=?', [next, existing.id]);
+    } else {
+      await conn.query('INSERT INTO table_orders (table_id, menu_item_id, segment, qty) VALUES (?,?,?,?)', [id, menu_item_id, segment, next]);
+    }
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback(); throw e;
+  } finally { conn.release(); }
+
   if (next !== before) {
     const [[mi]] = await pool.query('SELECT name, price FROM menu_items WHERE id=?', [menu_item_id]);
     const [[tinfo]] = await pool.query('SELECT id, label FROM billiard_tables WHERE id=?', [id]);
     await logAudit(req, { category: 'table', action: next > before ? 'order_add' : 'order_remove', entity_id: tinfo.id, entity_label: tableName(tinfo),
       description: `${tableName(tinfo)}: ${next > before ? 'gọi thêm' : 'bớt'} ${mi ? mi.name : 'món #' + menu_item_id} (${before} → ${next})`,
-      details: { 'Món': mi ? mi.name : menu_item_id, 'Đơn giá': mi ? vnd(mi.price) : '—', 'Số lượng trước': before, 'Số lượng sau': next, 'Lần chơi': segment } });
+      details: { 'Món': mi ? mi.name : menu_item_id, 'Đơn giá': mi ? vnd(mi.price) : '—', 'Số lượng trước': before, 'Số lượng sau': next, 'Lần chơi': segment,
+        'Tồn kho còn lại': stockLeft == null ? 'không theo dõi kho' : stockLeft } });
   }
-  res.json(await fetchTable(id));
+  const out = await fetchTable(id);
+  out._stock = stockLeft; // số tồn kho còn lại của món vừa gọi (null = món không theo dõi kho) để giao diện cập nhật nút "Hết"
+  res.json(out);
 });
 router.post('/api/tables/:id/close', async (req, res) => {
   const [[t]] = await pool.query('SELECT * FROM billiard_tables WHERE id=?', [req.params.id]);
@@ -177,10 +230,12 @@ router.post('/api/tables/:id/close', async (req, res) => {
     const snap = await billSnapshot(t);
     await logAudit(req, { category: 'table', action: 'cancel', entity_id: t.id, entity_label: tableName(t),
       description: `HUỶ ${tableName(t)} (không thanh toán) — tạm tính ${vnd(snap.total)}`,
-      details: { 'Mở lúc': new Date(t.start_time).toLocaleString('vi-VN'), 'Hạng giá': `${t.rate_name} (${vnd(t.rate_per_hour)}/giờ)`,
+      details: { 'Mở lúc': new Date(new Date(t.start_time).getTime() - Number(t.paused_total_sec || 0) * 1000).toLocaleString('vi-VN'),
+        'Tạm dừng': pausedTotalSec(t) > 0 ? fmtDur(pausedTotalSec(t)) + (t.paused_at ? ' (đang dừng lúc huỷ)' : '') : 'không', 'Hạng giá': `${t.rate_name} (${vnd(t.rate_per_hour)}/giờ)`,
         'Số khách': t.guests, 'Số lần đã cắt': snap.cuts, 'Món đã gọi': snap.items || '—',
         'Ghi chú bàn': t.note || '—', 'Tạm tính bị huỷ': vnd(snap.total) } });
   }
+  if (t && t.busy) await stock.releaseTable(pool, req.params.id); // đồ đã gọi chưa thanh toán -> trả lại kho
   await resetTable(req.params.id);
   res.json(await fetchTable(req.params.id));
 });
@@ -196,16 +251,17 @@ router.post('/api/tables/:id/cut', async (req, res) => {
 
   await pool.query(
     `INSERT INTO table_segments (table_id, segment_no, start_time, end_time, time_amount, drinks_amount, items)
-     VALUES (?,?,?,NOW(),?,?,?)`,
-    [id, t.current_segment, t.segment_start_time, timeAmount, drinksAmount, items]
+     VALUES (?,?,?,COALESCE(?,NOW()),?,?,?)`,
+    [id, t.current_segment, t.segment_start_time, t.paused_at, timeAmount, drinksAmount, items]
   );
   await pool.query(
-    'UPDATE billiard_tables SET current_segment = current_segment + 1, segment_start_time = NOW() WHERE id=?',
+    'UPDATE billiard_tables SET current_segment = current_segment + 1, segment_start_time = COALESCE(paused_at, NOW()) WHERE id=?',
     [id]
   );
   await logAudit(req, { category: 'table', action: 'cut', entity_id: t.id, entity_label: tableName(t),
     description: `Cắt ${tableName(t)} — chốt Lần ${t.current_segment}: ${vnd(timeAmount + drinksAmount)}`,
-    details: { 'Lần chốt': t.current_segment, 'Tiền giờ': vnd(timeAmount), 'Tiền đồ uống': vnd(drinksAmount), 'Món': items || '—' } });
+    details: { 'Lần chốt': t.current_segment, 'Tiền giờ': vnd(timeAmount), 'Tiền đồ uống': vnd(drinksAmount), 'Món': items || '—',
+      'Tình trạng bàn': t.paused_at ? 'đang tạm dừng' : 'đang chạy' } });
   res.json(await fetchTable(id));
 });
 
@@ -227,6 +283,52 @@ router.put('/api/tables/:id/extra-time', async (req, res) => {
     details: { 'Số phút cộng thêm': minutes, 'Giờ bắt đầu lần chơi (trước)': new Date(t.segment_start_time).toLocaleString('vi-VN'),
       'Giờ bắt đầu lần chơi (sau)': new Date(new Date(t.segment_start_time).getTime() - minutes * 60000).toLocaleString('vi-VN') } });
   res.json(await fetchTable(req.params.id));
+});
+
+/* ---- Tạm dừng bàn: đứng đồng hồ + đứng tiền giờ. Đồ uống vẫn gọi thêm được ---- */
+router.post('/api/tables/:id/pause', async (req, res) => {
+  const id = req.params.id;
+  const [[t]] = await pool.query('SELECT * FROM billiard_tables WHERE id=?', [id]);
+  if (!t || !t.busy) return res.status(400).json({ error: 'Bàn không ở trạng thái đang phục vụ.' });
+  if (t.paused_at) return res.status(400).json({ error: 'Bàn đang tạm dừng rồi.' });
+  const [r] = await pool.query('UPDATE billiard_tables SET paused_at=NOW() WHERE id=? AND paused_at IS NULL', [id]);
+  if (!r.affectedRows) return res.status(400).json({ error: 'Bàn đang tạm dừng rồi.' });
+
+  const fresh = await fetchTable(id);
+  const { timeAmount, drinksAmount } = await computeCurrentSegmentAmounts(fresh);
+  await logAudit(req, { category: 'table', action: 'pause', entity_id: t.id, entity_label: tableName(t),
+    description: `Tạm dừng ${tableName(t)} — tiền giờ Lần ${t.current_segment} dừng ở ${vnd(timeAmount)}`,
+    details: { 'Thời điểm tạm dừng': new Date(fresh.paused_at).toLocaleString('vi-VN'), 'Lần chơi': t.current_segment,
+      'Tiền giờ lúc dừng': vnd(timeAmount), 'Tiền đồ uống lúc dừng': vnd(drinksAmount),
+      'Tổng thời gian đã tạm dừng trước đó': fmtDur(Number(t.paused_total_sec || 0)) } });
+  res.json(fresh);
+});
+
+router.post('/api/tables/:id/resume', async (req, res) => {
+  const id = req.params.id;
+  const [[t]] = await pool.query('SELECT * FROM billiard_tables WHERE id=?', [id]);
+  if (!t || !t.busy) return res.status(400).json({ error: 'Bàn không ở trạng thái đang phục vụ.' });
+  if (!t.paused_at) return res.status(400).json({ error: 'Bàn không ở trạng thái tạm dừng.' });
+
+  const [[d]] = await pool.query('SELECT TIMESTAMPDIFF(SECOND, paused_at, NOW()) AS sec FROM billiard_tables WHERE id=?', [id]);
+  const sec = Math.max(0, Number(d.sec) || 0);
+  // Đẩy mốc bắt đầu (và giờ hẹn kết thúc) tiến lên đúng bằng thời gian đã dừng => khoảng dừng bị bỏ qua, không tính tiền
+  const [r] = await pool.query(
+    `UPDATE billiard_tables
+     SET start_time = DATE_ADD(start_time, INTERVAL ? SECOND),
+         segment_start_time = DATE_ADD(segment_start_time, INTERVAL ? SECOND),
+         expected_end = IF(expected_end IS NULL, NULL, DATE_ADD(expected_end, INTERVAL ? SECOND)),
+         paused_total_sec = paused_total_sec + ?,
+         paused_at = NULL
+     WHERE id=? AND paused_at IS NOT NULL`, [sec, sec, sec, sec, id]);
+  if (!r.affectedRows) return res.status(400).json({ error: 'Bàn không ở trạng thái tạm dừng.' });
+
+  await logAudit(req, { category: 'table', action: 'resume', entity_id: t.id, entity_label: tableName(t),
+    description: `Tiếp tục ${tableName(t)} — đã tạm dừng ${fmtDur(sec)} (không tính tiền)`,
+    details: { 'Dừng lúc': new Date(t.paused_at).toLocaleString('vi-VN'), 'Tiếp tục lúc': new Date().toLocaleString('vi-VN'),
+      'Thời gian lần dừng này': fmtDur(sec), 'Tổng thời gian đã tạm dừng của bàn': fmtDur(Number(t.paused_total_sec || 0) + sec),
+      'Lần chơi': t.current_segment } });
+  res.json(await fetchTable(id));
 });
 
 /* ---- Thanh toán: chốt lần chơi cuối, gộp với các lần đã cắt trước đó thành hoá đơn ---- */
@@ -269,10 +371,15 @@ router.post('/api/tables/:id/pay', async (req, res) => {
       [r.insertId, o.name, o.price, o.qty]);
   }
 
+  // Khách đã mua => ghi vào Xuất kho (tồn kho đã được trừ từ lúc gọi món)
+  const actorName = emp ? emp.name : (req.session.user ? (req.session.user.full_name || req.session.user.username) : null);
+  await stock.recordSaleOut(pool, { tableId: id, tableName: tableName(t), transactionId: r.insertId, actorName });
+
   await logAudit(req, { category: 'transaction', action: 'pay', entity_id: r.insertId, entity_label: tableName(t),
     description: `Thanh toán ${tableName(t)}: ${vnd(amount)} (${method === 'cash' ? 'tiền mặt' : 'chuyển khoản'})${emp ? ' — NV ' + emp.name : ''}`,
     details: { 'Mã giao dịch': r.insertId, 'Số tiền': vnd(amount), 'Phương thức': method === 'cash' ? 'Tiền mặt' : 'Chuyển khoản',
       'Nhân viên thu': emp ? emp.name : '—', 'Số lần chơi': segments.length,
+      'Thời gian tạm dừng (không tính tiền)': pausedTotalSec(t) > 0 ? fmtDur(pausedTotalSec(t)) : 'không',
       'Món đã bán': allOrders.map(o => `${o.name} x${o.qty}`).join(', ') || '—', 'Ghi chú bàn': t.note || '—' } });
   await resetTable(id);
   res.json({ transaction_id: r.insertId, amount, segments });

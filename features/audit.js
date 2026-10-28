@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const pool = require('../db');
-const { requireAuthApi } = require('../middleware/auth');
+const { requireAuthApi, requireAuditUnlocked } = require('../middleware/auth');
 const { logAudit } = require('../utils/audit');
 
 const router = express.Router();
@@ -41,14 +41,7 @@ router.post('/api/audit/unlock', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Từ đây trở xuống bắt buộc đã mở khoá trong phiên này
-function requireAuditUnlocked(req, res, next) {
-  // 403 (không phải 401) để tránh front-end tự đá về trang đăng nhập — đây chỉ là "chưa mở khoá Lịch sử", không phải "chưa đăng nhập"
-  if (!req.session.auditUnlocked) return res.status(403).json({ error: 'locked', locked: true });
-  next();
-}
-
-const CATEGORIES = ['table', 'transaction', 'employee', 'menu', 'rate', 'reservation', 'auth'];
+const CATEGORIES = ['table', 'transaction', 'employee', 'menu', 'rate', 'reservation', 'auth', 'inventory'];
 
 router.get('/api/audit', requireAuditUnlocked, async (req, res) => {
   const { category, actor, from, to, q } = req.query;

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nhập kho — Billiard Coffee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#11161d; --panel:#1a212b; --panel2:#212a36; --line:#2b3542;
+    --copper:#cf7a3a; --copper2:#e69a5c; --text:#eef1f5; --muted:#8d97a6;
+    --good:#3fbf74; --warn:#e0a53e; --bad:#e0523e;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+    box-sizing:border-box;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:'Be Vietnam Pro',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
+  header{display:flex; align-items:center; gap:24px; padding:14px 22px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#141b23,#11161d); position:sticky; top:env(safe-area-inset-top,0px); z-index:10; flex-wrap:wrap;}
+  .logo{display:flex; align-items:center; gap:10px; font-weight:800; font-size:19px;}
+  .logo-mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--copper),var(--copper2));display:flex;align-items:center;justify-content:center;font-size:15px;}
+  nav{display:flex; gap:4px; flex:1; flex-wrap:wrap;}
+  nav a{color:var(--muted); font-family:inherit; font-size:14.5px; font-weight:600; padding:9px 14px; border-radius:8px; cursor:pointer; text-decoration:none;}
+  nav a.active{color:var(--text); background:var(--panel2);}
+  .clock{text-align:right; color:var(--muted); font-size:12.5px; line-height:1.4;}
+  .userbox{display:flex; align-items:center; gap:10px; color:var(--muted); font-size:13px;}
+  .userbox b{color:var(--text);}
+  .userbox button{background:var(--panel2); border:1px solid var(--line); color:var(--text); font-family:inherit; font-size:12.5px; font-weight:600; padding:7px 11px; border-radius:8px; cursor:pointer;}
+  main{padding:20px; max-width:1200px; margin:0 auto;}
+  .btn{background:var(--copper); color:#1a1208; border:none; border-radius:9px; padding:10px 16px; font-family:inherit; font-weight:700; font-size:14px; cursor:pointer;}
+  .btn.ghost{background:var(--panel2); color:var(--text); border:1px solid var(--line);}
+  .btn.small{padding:6px 10px; font-size:12.5px; border-radius:7px;}
+  .btn.danger{background:var(--bad); color:#fff;}
+  input,select{background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:9px 11px; font-family:inherit; font-size:13.5px;}
+  label{font-size:12.5px; color:var(--muted); font-weight:600; display:block; margin-bottom:5px;}
+  .field{margin-bottom:12px;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px;}
+  .empty-state{display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; color:var(--muted); gap:10px; text-align:center;}
+  .empty-state .ic{font-size:36px;}
+  .subnav{display:flex; gap:8px; margin-bottom:18px;}
+  .subnav button{background:var(--panel2); border:1px solid var(--line); color:var(--muted); font-family:inherit; font-weight:700; font-size:13px; padding:8px 14px; border-radius:999px; cursor:pointer;}
+  .subnav button.active{background:var(--copper); color:#1a1208; border-color:var(--copper);}
+  .subview{display:none;}
+  .subview.active{display:block;}
+  table.data{width:100%; border-collapse:collapse; font-size:13.5px;}
+  table.data th{text-align:left; color:var(--muted); font-weight:600; font-size:12px; padding:8px 10px; border-bottom:1px solid var(--line);}
+  table.data td{padding:10px; border-bottom:1px solid var(--line);}
+  .emp-row{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border:1px solid var(--line); border-radius:10px; margin-bottom:8px; background:var(--panel);}
+  .rate-row{display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--line); border-radius:10px; margin-bottom:8px; background:var(--panel);}
+  .rate-row input{width:110px;}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--bad); color:#fff; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:600; z-index:100; display:none;}
+  .chips{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+  .chips button{background:var(--panel2); border:1px solid var(--line); color:var(--muted); font-family:inherit; font-weight:600; font-size:12.5px; padding:7px 12px; border-radius:8px; cursor:pointer;}
+  .chips button.active{background:var(--panel); color:var(--text); border-color:var(--copper);}
+  .badge{display:inline-block; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:700; white-space:nowrap;}
+  .b-table{background:#2a3a55; color:#8fb8f5;} .b-transaction{background:#1f3d2c; color:#6fdc9b;}
+  .b-employee{background:#3f3320; color:#e6c06a;} .b-menu{background:#3d2a3f; color:#dba3e0;}
+  .b-rate{background:#3a2c20; color:#e69a5c;} .b-reservation{background:#20373d; color:#7fd3e0;}
+  .b-auth{background:#2b3542; color:#b5bfcc;}
+  .act-danger{color:var(--bad); font-weight:700;}
+  tr.log-row{cursor:pointer;} tr.log-row:hover td{background:var(--panel2);}
+  tr.log-detail td{background:#151b23; font-size:12.5px; color:var(--muted); padding:10px 16px 14px;}
+  .kv{display:grid; grid-template-columns:max-content 1fr; gap:4px 16px;} .kv b{color:var(--text); font-weight:600;}
+  .pager{display:flex; align-items:center; justify-content:center; gap:12px; margin-top:14px; color:var(--muted); font-size:13px;}
+  @media (max-width:720px){
+    .clock{display:none;}
+    header{padding:8px 12px; gap:8px 12px;}
+    .logo{font-size:16px;} .logo-mark{width:26px; height:26px; font-size:13px;}
+    nav{order:3; flex:0 0 100%; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch;}
+    nav a{padding:8px 12px; font-size:14px; white-space:nowrap;}
+    .userbox{margin-left:auto; font-size:12px;}
+    main{padding:12px;}
+    .card{padding:12px;}
+    input,select{font-size:16px;}
+    .btn{min-height:42px;} .btn.small{min-height:36px;}
+    .toast{width:calc(100% - 24px); text-align:center; bottom:calc(16px + env(safe-area-inset-bottom,0px));}
+    .subnav{overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch;}
+    .subnav button{white-space:nowrap;}
+    .chips{overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch;}
+    .chips button{white-space:nowrap;}
+    .rate-row{flex-wrap:wrap; gap:8px;}
+    .rate-row input[id^="rateName"],.rate-row input[id^="editMenuName"]{flex:1 1 100% !important;}
+    .rate-row input{min-width:0;}
+    .emp-row{gap:8px;}
+    .emp-row input{min-width:0;}
+    table.data{min-width:560px;}
+  }
+  @media (max-width:480px){ .userbox span{display:none;} }
+
+  .form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px 14px;}
+  .form-grid .full{grid-column:1/-1;}
+  .form-grid input{width:100%; box-sizing:border-box;}
+  .hint{font-size:12px; color:var(--muted); margin-top:5px; min-height:16px;}
+  .hint b{color:var(--copper2);}
+  .toast.ok{background:var(--good); color:#0d2015;}
+  .sum-line{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:6px;}
+  .sum-line .big{font-weight:800; font-size:18px; color:var(--copper2);}
+  .section-title{font-weight:800; font-size:15px; margin:22px 0 10px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-mark">☕</div> Billiard Coffee</div>
+  <nav>
+    <a href="/tables.html">Sơ đồ bàn</a>
+    <a href="/resv.html">Đặt bàn</a>
+    <a class="active" href="/nhapkho.html">Nhập kho</a>
+    <a href="/manage.html">Quản lý</a>
+  </nav>
+  <div class="clock" id="clock"></div>
+  <div class="userbox"><span>Xin chào, <b id="whoami">…</b></span><button onclick="logout()">Đăng xuất</button></div>
+</header>
+
+<main>
+  <div class="card" id="lockScreen" style="max-width:380px; margin:40px auto; text-align:center; display:none;">
+    <div style="font-size:34px; margin-bottom:6px;">🔒</div>
+    <div style="font-weight:700; margin-bottom:4px;">Trang Nhập kho được bảo vệ</div>
+    <p style="color:var(--muted); font-size:13px; margin:0 0 14px;">Nhập mật khẩu Nhập kho (do chủ quán cấp) để tiếp tục.</p>
+    <input type="password" id="pwInput" placeholder="Mật khẩu Nhập kho" style="width:100%; margin-bottom:10px; text-align:center;" onkeydown="if(event.key==='Enter') unlockStock();">
+    <button class="btn" id="pwBtn" style="width:100%;" onclick="unlockStock()">Mở khoá</button>
+    <div id="lockMsg" style="color:var(--bad); font-size:12.5px; margin-top:10px; display:none;"></div>
+  </div>
+
+  <div id="stockApp" style="display:none;">
+  <div class="card">
+    <div style="font-weight:800; font-size:16px; margin-bottom:4px;">📥 Phiếu nhập kho</div>
+    <p style="color:var(--muted); font-size:13px; margin:0 0 14px;">Đồ <b>đã có trong kho</b> (trùng tên) sẽ được cộng thêm số lượng. Đồ mới sẽ được tạo mới. Món lên menu và bị trừ kho mỗi khi khách gọi.</p>
+    <div class="form-grid">
+      <div>
+        <label>Tên đồ</label>
+        <input id="inName" list="dlNames" placeholder="VD: Coca-Cola lon" autocomplete="off" oninput="onNameInput()">
+        <datalist id="dlNames"></datalist>
+        <div class="hint" id="nameHint"></div>
+      </div>
+      <div>
+        <label>Số lượng nhập</label>
+        <input id="inQty" type="number" min="1" inputmode="numeric" placeholder="VD: 24" onkeydown="if(event.key==='Enter') submitStockIn();">
+      </div>
+      <div id="sellWrap">
+        <label>Giá bán lên menu (đ) — tuỳ chọn</label>
+        <input id="inSell" type="number" min="0" inputmode="numeric" placeholder="VD: 15000">
+        <div class="hint" id="sellHint">Điền nếu đồ này chưa có trên menu để tạo món mới.</div>
+      </div>
+      <div>
+        <label>Ghi chú — tuỳ chọn</label>
+        <input id="inNote" placeholder="VD: nhập từ đại lý A">
+      </div>
+    </div>
+    <div class="sum-line" style="justify-content:flex-end;">
+      <button class="btn" id="inBtn" onclick="submitStockIn()">Nhập kho</button>
+    </div>
+  </div>
+
+  <div class="section-title">Các lần nhập gần đây</div>
+  <div class="card" style="padding:0; overflow:auto;">
+    <table class="data">
+      <thead><tr><th>Thời gian</th><th>Tên đồ</th><th>SL</th><th>Người nhập</th><th>Ghi chú</th><th></th></tr></thead>
+      <tbody id="recentBody"></tbody>
+    </table>
+  </div>
+  </div>
+</main>
+
+<div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:90; align-items:center; justify-content:center; padding:16px;">
+  <div class="card" style="width:100%; max-width:420px;">
+    <div style="font-weight:800; font-size:16px; margin-bottom:12px;">Sửa lần nhập</div>
+    <div style="margin-bottom:12px;"><label>Tên đồ</label><input id="edName" style="width:100%;"></div>
+    <div style="margin-bottom:12px;"><label>Số lượng nhập</label><input id="edQty" type="number" min="1" style="width:100%;"></div>
+    <div style="margin-bottom:6px;"><label>Ghi chú</label><input id="edNote" style="width:100%;"></div>
+    <div class="hint" id="edHint" style="margin-top:8px;"></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
+      <button class="btn ghost" onclick="closeEdit()">Huỷ</button>
+      <button class="btn" id="edOk" onclick="saveEdit()">Lưu</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+async function api(path, opts={}){
+  const res = await fetch(path.startsWith('/api')?path:'/api'+path, {
+    headers:{'Content-Type':'application/json'}, credentials:'same-origin', ...opts
+  });
+  if(res.status===401){ location.href='/login.html'; throw new Error('Chưa đăng nhập'); }
+  let data=null; try{ data = await res.json(); }catch(e){}
+  if(!res.ok) throw new Error((data&&data.error)||'Có lỗi xảy ra.');
+  return data;
+}
+function toast(msg, ok){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='toast'+(ok?' ok':''); el.style.display='block';
+  clearTimeout(toast._t); toast._t=setTimeout(()=>el.style.display='none', ok?3200:2800);
+}
+function logout(){ api('/logout',{method:'POST'}).finally(()=>location.href='/login.html'); }
+function fmt(n){ return Math.round(n).toLocaleString('vi-VN')+'đ'; }
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function tickClock(){
+  const now=new Date();
+  document.getElementById('clock').innerHTML = now.toLocaleTimeString('vi-VN',{hour12:false})+'<br>'+now.toLocaleDateString('vi-VN');
+}
+
+let items=[], recentRows=[];
+
+async function init(){
+  const { user } = await api('/session');
+  if(!user){ location.href='/login.html'; return; }
+  document.getElementById('whoami').textContent = user.full_name || user.username;
+  tickClock(); setInterval(tickClock,1000);
+  await checkLock();
+}
+/* ---- Mật khẩu Nhập kho (do chủ quán cấp bằng lệnh trên máy chủ) ---- */
+const IDLE_MS=10*60*1000; let idleT=null, unlocked=false;
+function showLock(msg){
+  unlocked=false; clearTimeout(idleT);
+  document.getElementById('stockApp').style.display='none';
+  document.getElementById('lockScreen').style.display='block';
+  document.getElementById('pwInput').value='';
+  const m=document.getElementById('lockMsg'); m.textContent=msg||''; m.style.display=msg?'block':'none';
+}
+function showApp(){
+  unlocked=true;
+  document.getElementById('lockScreen').style.display='none';
+  document.getElementById('stockApp').style.display='block';
+  resetIdle(); loadAll();
+}
+function resetIdle(){ if(!unlocked) return; clearTimeout(idleT); idleT=setTimeout(()=>{ api('/stockpw/lock',{method:'POST'}).catch(()=>{}); showLock('Đã tự khoá do không thao tác 10 phút.'); }, IDLE_MS); }
+['mousemove','keydown','click','touchstart','scroll'].forEach(e=>document.addEventListener(e,resetIdle,{passive:true}));
+async function checkLock(){
+  const st=await api('/stockpw/status');
+  if(!st.configured){
+    showLock('Chưa thiết lập mật khẩu Nhập kho — nhờ chủ quán chạy lệnh trên máy chủ: npm run set-stock-password -- "MatKhau..."');
+    document.getElementById('pwInput').style.display='none'; document.getElementById('pwBtn').style.display='none'; return;
+  }
+  if(st.unlocked) showApp(); else showLock();
+}
+async function unlockStock(){
+  const pw=document.getElementById('pwInput').value; if(!pw) return;
+  try{ await api('/stockpw/unlock',{method:'POST',body:JSON.stringify({password:pw})}); showApp(); }
+  catch(e){ const m=document.getElementById('lockMsg'); m.textContent=e.message; m.style.display='block'; }
+}
+async function loadAll(){
+  try{
+    [items] = await Promise.all([ api('/stock/names'), loadRecent() ]);
+    document.getElementById('dlNames').innerHTML = items.map(i=>'<option value="'+esc(i.name)+'">').join('');
+    onNameInput();
+  }catch(e){ if(e.message==='locked') showLock('Phiên đã hết hạn — nhập lại mật khẩu.'); else toast(e.message); }
+}
+async function loadRecent(){
+  const rows = recentRows = await api('/stock/recent');
+  document.getElementById('recentBody').innerHTML = rows.length ? rows.map(r=>
+    '<tr><td style="white-space:nowrap;">'+new Date(r.created_at).toLocaleString('vi-VN')+'</td><td>'+esc(r.item_name)+'</td>'+
+    '<td><b>'+r.qty+'</b></td><td>'+esc(r.actor_name||'—')+'</td><td style="color:var(--muted);">'+esc(r.note||'')+'</td><td><button class="btn small ghost" onclick="editIn('+r.id+')">Sửa</button> <button class="btn small danger" onclick="delIn('+r.id+')">Xoá</button></td></tr>'
+  ).join('') : '<tr><td colspan="6" style="color:var(--muted); text-align:center; padding:24px;">Chưa có lần nhập nào</td></tr>';
+}
+function findItem(name){ const n=name.trim().toLowerCase(); return n ? items.find(i=>i.name.toLowerCase()===n) : null; }
+
+// Gõ/chọn tên đồ đã có -> tự điền list đồ + giá nhập gần nhất, báo tồn hiện tại
+function onNameInput(){
+  const inv=findItem(document.getElementById('inName').value);
+  const hint=document.getElementById('nameHint'), sell=document.getElementById('inSell'), sellHint=document.getElementById('sellHint');
+  if(inv){
+    hint.innerHTML='Đã có trong kho — tồn hiện tại: <b>'+inv.qty+'</b> (nhập sẽ được cộng thêm)';
+    if(inv.menu_item_id){ sell.disabled=true; sell.value=''; sellHint.textContent='Đã có trên menu ('+fmt(inv.sell_price)+'). Đổi giá bán ở Quản lý → Menu.'; }
+    else { sell.disabled=false; sellHint.textContent='Chưa có trên menu — điền giá bán để đưa lên menu.'; }
+  }else{
+    hint.textContent = document.getElementById('inName').value.trim() ? 'Đồ mới — sẽ được tạo mới trong kho.' : '';
+    sell.disabled=false; sellHint.textContent='Điền nếu đồ này chưa có trên menu để tạo món mới.';
+  }
+}
+let editId=null;
+function closeEdit(){ document.getElementById('editModal').style.display='none'; editId=null; }
+function editIn(id){
+  const r=recentRows.find(x=>x.id===id); if(!r) return;
+  editId=id;
+  document.getElementById('edName').value=r.item_name;
+  document.getElementById('edQty').value=r.qty;
+  document.getElementById('edNote').value=r.note||'';
+  document.getElementById('edHint').textContent='Đổi số lượng thì tồn kho tự cộng/trừ phần chênh lệch (nhập '+r.qty+' → số mới).';
+  document.getElementById('editModal').style.display='flex';
+  document.getElementById('edQty').focus();
+}
+async function saveEdit(){
+  const name=document.getElementById('edName').value.trim(), qty=parseInt(document.getElementById('edQty').value)||0, note=document.getElementById('edNote').value.trim();
+  if(!name){ toast('Nhập tên đồ.'); return; }
+  if(qty<1){ toast('Số lượng nhập phải từ 1 trở lên.'); return; }
+  const btn=document.getElementById('edOk'); btn.disabled=true;
+  try{ await api('/stock/in/'+editId,{method:'PUT',body:JSON.stringify({name,qty,note})}); closeEdit(); toast('Đã sửa lần nhập.',true); await loadAll(); }
+  catch(e){ if(e.message==='locked'){ closeEdit(); showLock('Phiên đã hết hạn — nhập lại mật khẩu.'); } else toast(e.message); }
+  finally{ btn.disabled=false; }
+}
+async function delIn(id){
+  const r=recentRows.find(x=>x.id===id); if(!r) return;
+  if(!confirm('Xoá lần nhập "'+r.item_name+' x'+r.qty+'"?\nTồn kho sẽ bị trừ lại '+r.qty+'. Chỉ xoá được khi số này chưa bán/xuất hết.')) return;
+  try{ const x=await api('/stock/in/'+id,{method:'DELETE'}); toast(x.removedItem?'Đã xoá phiếu nhập và gỡ món khỏi kho.':'Đã xoá phiếu nhập.',true); await loadAll(); }
+  catch(e){ if(e.message==='locked') showLock('Phiên đã hết hạn — nhập lại mật khẩu.'); else toast(e.message); }
+}
+async function submitStockIn(){
+  const name=document.getElementById('inName').value.trim();
+  const qty=parseInt(document.getElementById('inQty').value)||0;
+  const sell_price=parseInt(document.getElementById('inSell').value)||0;
+  const note=document.getElementById('inNote').value.trim();
+  if(!name){ toast('Nhập tên đồ.'); return; }
+  if(qty<1){ toast('Nhập số lượng nhập (từ 1 trở lên).'); return; }
+  const btn=document.getElementById('inBtn'); btn.disabled=true;
+  try{
+    const r=await api('/stock/in',{method:'POST',body:JSON.stringify({name,qty,sell_price,note})});
+    toast('Đã nhập '+r.item.name+' x'+qty+' — tồn kho: '+r.item.qty+(r.created?' (đồ mới)':''), true);
+    ['inName','inQty','inSell','inNote'].forEach(id=>document.getElementById(id).value='');
+    await loadAll();
+    document.getElementById('inName').focus();
+  }catch(e){ if(e.message==='locked') showLock('Phiên đã hết hạn — nhập lại mật khẩu.'); else toast(e.message); }
+  finally{ btn.disabled=false; }
+}
+init();
+</script>
+</body>
+</html>

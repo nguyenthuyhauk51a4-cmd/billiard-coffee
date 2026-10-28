@@ -54,6 +54,10 @@
   .card-actions button{flex:1; border:none; border-radius:7px; padding:5px 6px; font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer; background:rgba(255,255,255,.22); color:inherit; white-space:nowrap;}
   .card-actions button:hover{background:rgba(255,255,255,.34);}
   .table-card.soon .card-actions button{background:rgba(0,0,0,.14);}
+  .table-card.paused{background:linear-gradient(155deg,#6b7280,#4b5563); color:#f3f4f6;}
+  .table-card.paused .timer{opacity:.85;}
+  .card-actions{flex-wrap:wrap;} .card-actions button{min-width:0; padding-left:4px; padding-right:4px;}
+  .paused-banner{background:rgba(107,114,128,.18); border:1px solid #6b7280; color:inherit; border-radius:10px; padding:10px 12px; font-size:13px; font-weight:600; margin-bottom:12px;}
   .badge-res{position:absolute; top:8px; right:8px; background:var(--copper); color:#1a1208; font-size:10.5px; font-weight:800; padding:2px 6px; border-radius:6px;}
   .badge-note{position:absolute; top:8px; left:8px; font-size:13px;}
   .badge-del{position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:999px; background:var(--bad); color:#fff; border:none; font-weight:800; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
@@ -110,7 +114,7 @@
   @media (max-width:560px){
     .grid{grid-template-columns:repeat(2,1fr); gap:10px;}
     .table-card,.add-table-card{height:auto; min-height:140px;}
-    .card-actions button{padding:8px 6px; font-size:12px;}
+    .card-actions button{padding:8px 6px; font-size:12px; flex:1 1 45%;}
     .userbox span{display:none;}
   }
 </style>
@@ -122,6 +126,7 @@
   <nav>
     <a class="active" href="/tables.html">Sơ đồ bàn</a>
     <a href="/resv.html">Đặt bàn</a>
+    <a href="/nhapkho.html">Nhập kho</a>
     <a href="/manage.html">Quản lý</a>
   </nav>
   <div class="clock" id="clock"></div>
@@ -171,6 +176,8 @@ function elapsedStr(ms){
   if(d>0) return d+' ngày';
   return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(Math.floor((ms%60000)/1000)).padStart(2,'0');
 }
+// Mốc thời gian dùng để tính giờ: bàn đang tạm dừng thì đứng yên tại lúc bấm Tạm dừng
+function nowFor(t){ return (t && t.paused_at) ? new Date(t.paused_at).getTime() : Date.now(); }
 function activeTable(){ return tables.find(t=>t.id===activeTableId) || null; }
 
 async function init(){
@@ -189,6 +196,7 @@ async function init(){
 }
 async function refreshTables(){
   try{
+    MENU = await api('/menu'); // cập nhật tồn kho (nhập kho ở máy khác, bàn khác gọi món...)
     tables = await api('/tables');
     reservations = await api('/reservations');
     if(!document.getElementById('overlay').classList.contains('open')) renderGrid();
@@ -198,7 +206,7 @@ async function refreshTables(){
 
 function isSoonEnd(t){
   if(!t.busy || !t.expected_end) return false;
-  const rem = new Date(t.expected_end).getTime() - Date.now();
+  const rem = new Date(t.expected_end).getTime() - nowFor(t);
   return rem>0 && rem<=15*60000;
 }
 function reservationsSoonCount(){
@@ -249,7 +257,7 @@ function renderGrid(){
     if(soon) soonCount++;
     const res=reservations.find(r=>r.table_id===t.id);
     const el=document.createElement('div');
-    el.className='table-card'+(t.busy?(soon?' soon':' busy'):'')+(editLayoutMode?' editing':'');
+    el.className='table-card'+(t.busy?(t.paused_at?' paused':(soon?' soon':' busy')):'')+(editLayoutMode?' editing':'');
     el.onclick=()=> editLayoutMode ? renameTable(t.id) : openDrawer(t.id);
     el.innerHTML=`
       ${res?'<div class="badge-res">Đặt '+res.reserve_time.slice(11,16)+'</div>':''}
@@ -257,10 +265,10 @@ function renderGrid(){
       ${editLayoutMode && !t.busy?'<button class="badge-del" onclick="deleteTable('+t.id+',event)" title="Xoá bàn">✕</button>':''}
       <div class="num">${tableLabel(t)}</div>
       <div>
-        <div class="status">${editLayoutMode?'Bấm để đổi tên':(t.busy?(soon?'Sắp hết giờ':'Đang phục vụ'):'Bàn trống')}</div>
-        ${t.busy?'<div class="meta-row"><span class="timer" data-id="'+t.id+'">'+elapsedStr(Date.now()-new Date(t.start_time).getTime())+'</span><span class="guests">'+(t.guests||0)+' khách</span></div>':''}
+        <div class="status">${editLayoutMode?'Bấm để đổi tên':(t.busy?(t.paused_at?'⏸️ Tạm dừng':(soon?'Sắp hết giờ':'Đang phục vụ')):'Bàn trống')}</div>
+        ${t.busy?'<div class="meta-row"><span class="timer" data-id="'+t.id+'">'+elapsedStr(nowFor(t)-new Date(t.start_time).getTime())+'</span><span class="guests">'+(t.guests||0)+' khách</span></div>':''}
       </div>
-      ${t.busy && !editLayoutMode?'<div class="card-actions"><button onclick="cutTable('+t.id+',event)">✂️ Cắt bàn</button><button onclick="addExtraTime('+t.id+',event)">⏱️ Thêm giờ</button></div>':''}`;
+      ${t.busy && !editLayoutMode?'<div class="card-actions"><button onclick="cutTable('+t.id+',event)">✂️ Cắt bàn</button><button onclick="addExtraTime('+t.id+',event)">⏱️ Thêm giờ</button><button onclick="togglePause('+t.id+',event)">'+(t.paused_at?'▶️ Tiếp tục':'⏸️ Tạm dừng')+'</button></div>':''}`;
     grid.appendChild(el);
   });
   if(editLayoutMode){
@@ -285,7 +293,7 @@ function segmentsPastTotal(t){
 }
 function currentSegmentTime(t){
   if(!t.busy || !t.rate_per_hour || !t.segment_start_time) return 0;
-  return (Date.now()-new Date(t.segment_start_time).getTime())/3600000 * t.rate_per_hour;
+  return (nowFor(t)-new Date(t.segment_start_time).getTime())/3600000 * t.rate_per_hour;
 }
 function currentSegmentDrinks(t){
   let total=0; (t.orders||[]).forEach(o=>{ total += o.price*o.qty; }); return total;
@@ -296,7 +304,7 @@ function tableTotal(t){
 function tickTimers(){
   document.querySelectorAll('.timer').forEach(el=>{
     const t=tables.find(x=>x.id==el.dataset.id);
-    if(t&&t.busy) el.textContent=elapsedStr(Date.now()-new Date(t.start_time).getTime());
+    if(t&&t.busy) el.textContent=elapsedStr(nowFor(t)-new Date(t.start_time).getTime());
   });
   const t=activeTable();
   if(t && t.busy){
@@ -379,9 +387,12 @@ function renderDrawer(){
   let itemsHtml = MENU.length ? MENU.map(m=>{
     const found=(t.orders||[]).find(o=>o.menu_item_id===m.id);
     const qty=found?found.qty:0;
-    return '<div class="item-row"><div>'+m.name+'<div style="color:var(--muted); font-size:12px;">'+fmt(m.price)+'</div></div>'+
+    const tracked = m.stock_qty!=null && m.stock_qty!==undefined;       // món có theo dõi kho
+    const soldOut = tracked && Number(m.stock_qty)<=0;                   // hết hàng -> không gọi thêm được
+    const stockTxt = !tracked ? '' : (soldOut ? ' · <b style="color:var(--bad);">Hết hàng</b>' : ' · Còn '+m.stock_qty);
+    return '<div class="item-row" style="'+(soldOut?'opacity:.75;':'')+'"><div>'+m.name+'<div style="color:var(--muted); font-size:12px;">'+fmt(m.price)+stockTxt+'</div></div>'+
       '<div style="display:flex; align-items:center; gap:8px;"><button onclick="changeQty('+m.id+',-1)">−</button>'+
-      '<span style="min-width:16px; text-align:center;">'+qty+'</span><button onclick="changeQty('+m.id+',1)">+</button></div></div>';
+      '<span style="min-width:16px; text-align:center;">'+qty+'</span><button '+(soldOut?'disabled title="Hết hàng" style="opacity:.3; cursor:not-allowed;"':'')+' onclick="changeQty('+m.id+',1)">+</button></div></div>';
   }).join('') : '<div style="color:var(--muted); font-size:13px; padding:10px 0;">Chưa có món nào trong menu — thêm ở trang Quản lý → Menu.</div>';
 
   const pastRows = (t.segments||[]).map(seg =>
@@ -391,7 +402,8 @@ function renderDrawer(){
   d.innerHTML=`
     <button class="close-x" onclick="closeDrawer()">✕</button>
     <h3>${tableLabel(t)}</h3>
-    <div class="sub">${t.rate_name} · ${fmt(t.rate_per_hour)}/giờ · đã chơi ${elapsedStr(Date.now()-new Date(t.start_time).getTime())} · ${t.guests||0} khách${isSoonEnd(t)?' · ⏰ sắp hết giờ':''}${t.segments&&t.segments.length?' · lần chơi hiện tại: '+t.current_segment:''}</div>
+    <div class="sub">${t.rate_name} · ${fmt(t.rate_per_hour)}/giờ · đã chơi ${elapsedStr(nowFor(t)-new Date(t.start_time).getTime())} · ${t.guests||0} khách${isSoonEnd(t)?' · ⏰ sắp hết giờ':''}${t.segments&&t.segments.length?' · lần chơi hiện tại: '+t.current_segment:''}</div>
+    ${t.paused_at?'<div class="paused-banner">⏸️ Bàn đang tạm dừng — đồng hồ và tiền giờ đã dừng. Bấm <b>▶️ Tiếp tục</b> trên thẻ bàn để tính giờ lại.</div>':''}
     ${pastRows?'<div class="segments-list" style="margin-bottom:10px;">'+pastRows+'</div>':''}
     <div class="field"><label>Ghi chú cho quản lý</label><input id="tableNote" value="${t.note||''}" placeholder="VD: khách quen, giảm giá..." style="width:100%;" onchange="updateNote(this.value)"></div>
     <p class="section-title" style="font-size:13.5px;">Đồ uống ${t.segments&&t.segments.length?'(lần '+t.current_segment+')':''}</p>${itemsHtml}
@@ -424,9 +436,13 @@ async function confirmOpenTable(){
 async function changeQty(menuItemId,delta){
   try{
     const t=await api('/tables/'+activeTableId+'/order',{method:'POST',body:JSON.stringify({menu_item_id:menuItemId,delta})});
+    if(t._stock!==undefined){ const m=MENU.find(x=>x.id===menuItemId); if(m) m.stock_qty=t._stock; } // số còn lại trong kho của món vừa gọi
     tables=tables.map(x=>x.id===t.id?t:x);
     renderDrawer();
-  }catch(e){ toast(e.message); }
+  }catch(e){
+    toast(e.message);
+    try{ MENU=await api('/menu'); renderDrawer(); }catch(_){}   // đồng bộ lại tồn kho (có thể vừa hết do máy khác gọi)
+  }
 }
 async function updateNote(val){
   try{
@@ -452,6 +468,19 @@ async function cutTable(id, evt){
     if(activeTableId) renderDrawer();
     renderGrid();
     toast('Đã cắt bàn — bắt đầu lần chơi mới.');
+  }catch(e){ toast(e.message); }
+}
+async function togglePause(id, evt){
+  if(evt) evt.stopPropagation();
+  const t0=tables.find(x=>x.id===id); if(!t0) return;
+  const wasPaused=!!t0.paused_at;
+  const pausedMs = wasPaused ? Date.now()-new Date(t0.paused_at).getTime() : 0;
+  try{
+    const t=await api('/tables/'+id+(wasPaused?'/resume':'/pause'),{method:'POST'});
+    tables=tables.map(x=>x.id===t.id?t:x);
+    if(activeTableId) renderDrawer();
+    renderGrid();
+    toast(wasPaused ? 'Tiếp tục tính giờ — đã bỏ qua '+Math.max(0,Math.round(pausedMs/60000))+' phút tạm dừng.' : 'Đã tạm dừng — đồng hồ và tiền giờ đã dừng.');
   }catch(e){ toast(e.message); }
 }
 async function addExtraTime(id, evt){

@@ -4,6 +4,7 @@ const ExcelJS = require('exceljs');
 const pool = require('../db');
 const { requireAuthApi, requireAuthPage } = require('../middleware/auth');
 const { logAudit, vnd } = require('../utils/audit');
+const stock = require('../utils/stock');
 
 const router = express.Router();
 
@@ -52,9 +53,31 @@ router.put('/api/rates/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+router.post('/api/rates', async (req, res) => {
+  const name = String(req.body.name || '').trim();
+  const per_hour = parseInt(req.body.per_hour) || 0;
+  if (!name) return res.status(400).json({ error: 'Nhập tên hạng bàn.' });
+  const [r] = await pool.query('INSERT INTO rates (name, per_hour) VALUES (?, ?)', [name, per_hour]);
+  await logAudit(req, { category: 'rate', action: 'add', entity_id: r.insertId, entity_label: name,
+    description: `Thêm hạng giá bàn "${name}": ${vnd(per_hour)}/giờ` });
+  res.json({ id: r.insertId, name, per_hour });
+});
+router.delete('/api/rates/:id', async (req, res) => {
+  const [[old]] = await pool.query('SELECT * FROM rates WHERE id=?', [req.params.id]);
+  if (!old) return res.status(404).json({ error: 'Không tìm thấy hạng giá.' });
+  await pool.query('DELETE FROM rates WHERE id=?', [req.params.id]); // bàn đang mở vẫn giữ giá đã lưu (snapshot)
+  await logAudit(req, { category: 'rate', action: 'delete', entity_id: old.id, entity_label: old.name,
+    description: `Xoá hạng giá bàn "${old.name}" (${vnd(old.per_hour)}/giờ)` });
+  res.json({ ok: true });
+});
+
 // Menu
 router.get('/api/menu', async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM menu_items ORDER BY id');
+  // stock_qty: số còn trong kho (null = món không theo dõi kho, luôn gọi được)
+  const [rows] = await pool.query(
+    `SELECT m.*, i.id AS inventory_item_id, i.qty AS stock_qty
+     FROM menu_items m LEFT JOIN inventory_items i ON i.menu_item_id = m.id AND i.active = 1
+     ORDER BY m.id`);
   res.json(rows);
 });
 router.post('/api/menu', async (req, res) => {
@@ -62,6 +85,9 @@ router.post('/api/menu', async (req, res) => {
   const price = parseInt(req.body.price) || 0;
   if (!name) return res.status(400).json({ error: 'Nhập tên món.' });
   const [r] = await pool.query('INSERT INTO menu_items (name, price) VALUES (?,?)', [name, price]);
+  // Trong kho đã có đồ cùng tên mà chưa gắn món nào -> tự gắn để món này được trừ kho khi bán
+  await pool.query(
+    'UPDATE inventory_items SET menu_item_id=? WHERE active=1 AND menu_item_id IS NULL AND LOWER(name)=LOWER(?)', [r.insertId, name]);
   await logAudit(req, { category: 'menu', action: 'add', entity_id: r.insertId, entity_label: name,
     description: `Thêm món vào menu: ${name} — ${vnd(price)}` });
   res.json({ id: r.insertId, name, price });
@@ -81,6 +107,7 @@ router.put('/api/menu/:id', async (req, res) => {
 });
 router.delete('/api/menu/:id', async (req, res) => {
   const [[old]] = await pool.query('SELECT * FROM menu_items WHERE id=?', [req.params.id]);
+  await stock.releaseMenuItem(pool, req.params.id); // món đang gọi trên bàn chưa thanh toán -> trả lại kho trước khi xoá
   await pool.query('DELETE FROM menu_items WHERE id=?', [req.params.id]); // table_orders liên quan tự xoá theo CASCADE
   if (old) await logAudit(req, { category: 'menu', action: 'delete', entity_id: old.id, entity_label: old.name,
     description: `Xoá món khỏi menu: ${old.name} (${vnd(old.price)})` });
